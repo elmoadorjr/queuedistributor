@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Queue Distributor v32 · EnableComp MVA</title>
+<title>Queue Distributor v33 · EnableComp MVA</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.js"></script>
@@ -664,7 +664,7 @@
       <div class="logo-icon">⚖️</div>
       <div>
         <div class="logo-text">Queue Distributor</div>
-        <div class="logo-sub">EnableComp · MVA Team · v32</div>
+        <div class="logo-sub">EnableComp · MVA Team · v33</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1630,8 +1630,6 @@ function handleFiles(files) {
 }
 
 function parseCSV(text) {
-  // Strip UTF-8 BOM if present (Excel-exported CSVs often include it)
-  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (!lines.length) return [];
   const headers = parseCSVLine(lines[0]);
@@ -1911,64 +1909,78 @@ function getMatchType(agentName, row) {
 // preference never badly unbalances the queue.
 const MATCH_TOLERANCE = 2;
 
-function smartAssign(agentObjs, buckets, row, size, statusRules, statusCol, groupPassesStatusFn) {
-  // Use *projected* total (current + incoming size) as the fairness metric so
-  // that a large group already assigned to an agent is visible to the next
-  // assignment decision — preventing the "light bucket, heavy group" skew.
-  // groupPassesStatusFn (optional): pre-computed per-group status check for
-  // multi-status groups. When provided, overrides the single-row status check.
+// ── PROPORTIONAL STATUS DISTRIBUTION ────────────────────────────────────────
+// statusProportions: { STATUS_NAME: fraction }  e.g. { 'PATIENT PURSUIT': 0.4, ... }
+// agentStatusCounts: { agentName: { STATUS_NAME: count } }
+// These are set once in runDistribution() and read by smartAssign.
+let _statusProportions = {};
+let _agentStatusCounts = {};
+
+// Score how much an agent NEEDS a given status based on their current mix
+// vs the target proportion. Higher score = more behind on this status.
+// Returns a deficit score: positive means agent is under-proportioned for this status.
+function statusDeficitScore(agentName, status, totalAssigned) {
+  if (!_statusProportions[status] || totalAssigned === 0) return 0;
+  const target = _statusProportions[status]; // e.g. 0.4
+  const current = (_agentStatusCounts[agentName]?.[status] || 0) / totalAssigned;
+  return target - current; // positive = agent is behind on this status
+}
+
+function smartAssign(agentObjs, buckets, row, size, statusRules, statusCol, groupPassesStatusFn, scoringStatus) {
+  // scoringStatus: the status label used for proportional scoring (dominant status
+  // for groups, actual status for singles). Falls back to row[statusCol].
   let lightest = null, lightestProjected = Infinity;
   let skippedForStatus = 0;
   let skippedForCap = 0;
 
   const claimStatus = String(row[statusCol] || '').toUpperCase();
+  const scoreStatus = (scoringStatus || claimStatus).toUpperCase();
 
+  // Build list of eligible agents (pass status + cap filters)
+  const eligible = [];
   agentObjs.forEach(a => {
     // 1. Status Filter Check
-    // If a group-level status checker is provided (for related groups with mixed
-    // statuses), use it. Otherwise fall back to single-row status check.
     if (a.batch && statusRules[a.batch] && statusRules[a.batch].length > 0) {
       const passes = groupPassesStatusFn
         ? groupPassesStatusFn(a.batch)
         : statusRules[a.batch].includes(claimStatus);
-      if (!passes) {
-        skippedForStatus++;
-        return;
-      }
+      if (!passes) { skippedForStatus++; return; }
     }
-
     // 2. Cap Filter Check
     const cap = a.cap != null ? a.cap : state.globalCap;
-    if (cap != null && buckets[a.name].length + size > cap) {
-      skippedForCap++;
-      return;
-    }
+    if (cap != null && buckets[a.name].length + size > cap) { skippedForCap++; return; }
 
-    // Pick the agent whose *projected* total (after adding this group) is lowest.
     const projected = buckets[a.name].length + size;
     if (projected < lightestProjected) { lightestProjected = projected; lightest = a.name; }
+    eligible.push(a);
   });
-  
+
   if (!lightest) {
     if (skippedForStatus === agentObjs.length) return { error: true, reason: 'Filtered: Status mismatch for active batches' };
     return { error: true, reason: 'Cap Overflow / Unassigned' };
   }
 
-  // Provider-match pass: only consider agents whose projected total stays
-  // within MATCH_TOLERANCE of the lightest projected total, ensuring provider
-  // preference doesn't override fairness by more than a small margin.
+  // ── PROPORTIONAL STATUS TIEBREAK ────────────────────────────────────────
+  // Among agents within MATCH_TOLERANCE of the lightest projected total,
+  // prefer the one most behind on the target proportion for this status.
+  // This keeps every agent's status mix proportional to the queue as a whole.
+  const STATUS_TOLERANCE = MATCH_TOLERANCE + 1; // slightly wider than provider tolerance
+  let bestAgent = lightest;
+  let bestScore = -Infinity;
+  eligible.forEach(a => {
+    const projected = buckets[a.name].length + size;
+    if (projected > lightestProjected + STATUS_TOLERANCE) return;
+    const totalSoFar = buckets[a.name].length || 1;
+    const deficit = statusDeficitScore(a.name, scoreStatus, totalSoFar);
+    // Tiebreak by projected total if deficits are equal (within 0.01)
+    const score = deficit * 1000 - projected * 0.01;
+    if (score > bestScore) { bestScore = score; bestAgent = a.name; }
+  });
+
+  // Provider-match pass: only consider agents within MATCH_TOLERANCE of lightest,
+  // ensuring provider preference doesn't override proportional fairness.
   let bestMatch = null, bestMatchType = 'none', bestMatchProjected = Infinity;
-  agentObjs.forEach(a => {
-    if (a.batch && statusRules[a.batch] && statusRules[a.batch].length > 0) {
-      const passes = groupPassesStatusFn
-        ? groupPassesStatusFn(a.batch)
-        : statusRules[a.batch].includes(claimStatus);
-      if (!passes) return;
-    }
-
-    const cap = a.cap != null ? a.cap : state.globalCap;
-    if (cap != null && buckets[a.name].length + size > cap) return;
-
+  eligible.forEach(a => {
     const projected = buckets[a.name].length + size;
     if (projected > lightestProjected + MATCH_TOLERANCE) return; // fairness gate
 
@@ -1979,8 +1991,8 @@ function smartAssign(agentObjs, buckets, row, size, statusRules, statusCol, grou
       bestMatch = a.name; bestMatchType = 'provider'; bestMatchProjected = projected;
     }
   });
-  
-  return { agent: bestMatch || lightest, matchType: bestMatch ? bestMatchType : 'none' };
+
+  return { agent: bestMatch || bestAgent, matchType: bestMatch ? bestMatchType : 'none' };
 }
 
 function runDistribution() {
@@ -2054,6 +2066,23 @@ function runDistribution() {
     else unkeyed.push(row);
   });
   state.groups = groups;
+
+  // ── PROPORTIONAL STATUS SETUP ────────────────────────────────────────────
+  // Compute the target proportion of each status across ALL working rows.
+  // This drives the proportional tiebreak in smartAssign so every agent's
+  // status mix mirrors the queue as a whole.
+  _statusProportions = {};
+  _agentStatusCounts = {};
+  if (workingRows.length > 0) {
+    workingRows.forEach(r => {
+      const s = String(r[statusCol] || '').toUpperCase();
+      if (s) _statusProportions[s] = (_statusProportions[s] || 0) + 1;
+    });
+    Object.keys(_statusProportions).forEach(s => {
+      _statusProportions[s] = _statusProportions[s] / workingRows.length;
+    });
+  }
+  agentObjs.forEach(a => { _agentStatusCounts[a.name] = {}; });
 
   const related=[], singles=[];
   Object.values(groups).forEach(g => { if (g.length>1) related.push(g); else singles.push(g[0]); });
@@ -2143,7 +2172,12 @@ function runDistribution() {
     //   push an agent slightly over rather than refuse assignment entirely.
     const pool = eligibleAgents.length ? eligibleAgents : agentObjs;
 
-    const result = smartAssign(pool, buckets, group[0], groupSize, statusRules, statusCol, groupPassesStatus);
+    // Dominant status = most common status in group (for proportional scoring)
+    const statusFreq = {};
+    group.forEach(r => { const s = String(r[statusCol]||'').toUpperCase(); statusFreq[s] = (statusFreq[s]||0)+1; });
+    const dominantStatus = Object.entries(statusFreq).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+
+    const result = smartAssign(pool, buckets, group[0], groupSize, statusRules, statusCol, groupPassesStatus, dominantStatus);
     if (result && result.error) {
       if (result.reason.includes('Status mismatch')) statusFiltered += groupSize;
       else overflow += groupSize;
@@ -2152,6 +2186,12 @@ function runDistribution() {
     }
     const { agent: t, matchType } = result;
     agentRelClaimCounts[t] += groupSize; // track by CLAIMS, not groups
+    // Update per-status counts for proportional tracking
+    if (!_agentStatusCounts[t]) _agentStatusCounts[t] = {};
+    group.forEach(r => {
+      const s = String(r[statusCol]||'').toUpperCase();
+      if (s) _agentStatusCounts[t][s] = (_agentStatusCounts[t][s] || 0) + 1;
+    });
     if (matchType === 'exact') exactMatches += groupSize; else if (matchType === 'provider') provMatches += groupSize;
     const groupKey = getPatientKey(group[0]);
     if (groupKey) groupAssignedTo[groupKey] = t;
@@ -2183,12 +2223,17 @@ function runDistribution() {
         if (mt === 'exact') exactMatches++; else if (mt === 'provider') provMatches++;
         buckets[pinnedAgent].push({...row, _gid: null, _rel: true, _match: mt, _pinnedToGroup: true});
         agentRelClaimCounts[pinnedAgent] = (agentRelClaimCounts[pinnedAgent] || 0) + 1;
+        // Track status for proportional scoring
+        if (!_agentStatusCounts[pinnedAgent]) _agentStatusCounts[pinnedAgent] = {};
+        const ps = String(row[statusCol]||'').toUpperCase();
+        if (ps) _agentStatusCounts[pinnedAgent][ps] = (_agentStatusCounts[pinnedAgent][ps] || 0) + 1;
         return;
       }
       // Pinned agent at hard cap or too far ahead — fall through to smartAssign
     }
 
-    result = smartAssign(agentObjs, buckets, row, 1, statusRules, statusCol);
+    const singleStatus = String(row[statusCol]||'').toUpperCase();
+    result = smartAssign(agentObjs, buckets, row, 1, statusRules, statusCol, null, singleStatus);
     if (result && result.error) {
       if (result.reason.includes('Status mismatch')) statusFiltered++;
       else overflow++;
@@ -2197,11 +2242,16 @@ function runDistribution() {
     }
     const { agent: t, matchType } = result;
     if (matchType === 'exact') exactMatches++; else if (matchType === 'provider') provMatches++;
+    // Track status for proportional scoring
+    if (!_agentStatusCounts[t]) _agentStatusCounts[t] = {};
+    if (singleStatus) _agentStatusCounts[t][singleStatus] = (_agentStatusCounts[t][singleStatus] || 0) + 1;
     buckets[t].push({...row,_gid:null,_rel:false,_match:matchType});
   });
 
   state.distribution=buckets;
   state.overflowCount = overflow;
+  state.agentStatusCounts = _agentStatusCounts;
+  state.statusProportions = _statusProportions;
   // Record run time
   const nowStr = new Date().toLocaleTimeString('en-PH', {timeZone:'Asia/Manila', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
   const lastRunEl = document.getElementById('lastRunTime');
@@ -2246,6 +2296,25 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
     ${Object.keys(state.priorRelatedCounts).length>0?`<div class="stat-card" style="border-color:rgba(168,85,247,0.35);background:rgba(168,85,247,0.05)"><div class="stat-label">Prior Queue</div><div class="stat-value" style="color:var(--purple);font-size:18px">⚖️</div><div class="stat-sub">offset applied (50% memory, symmetric)</div></div>`:''}
     <div class="stat-card sc-match"><div class="stat-label">Provider Matched</div><div class="stat-value" style="color:var(--purple)">${matchPct}%</div><div class="stat-sub">${state.exactMatches} exact · ${state.provMatches} prov</div></div>
     ${nearCapCard}
+    ${(()=>{
+      const sp = state.statusProportions || {};
+      const keys = Object.keys(sp).filter(s=>sp[s]>0).sort((a,b)=>sp[b]-sp[a]);
+      if (!keys.length) return '';
+      const STATUS_COLORS = {'PATIENT PURSUIT':'#f59e0b','BILL POR':'#3b82f6','EOB REQUESTED':'#10b981','BILL FILED':'#6366f1','COMMERCIAL BILL FILED':'#ec4899','VALIDATION PENDING - LEVEL 1':'#22d3ee'};
+      const DEFAULT_COLORS = ['#a78bfa','#fb923c','#4ade80'];
+      let ci=0;
+      const bars = keys.map(s=>{
+        const col = STATUS_COLORS[s]||DEFAULT_COLORS[ci++%DEFAULT_COLORS.length];
+        const lbl = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
+        return `<div title="${s}: ${(sp[s]*100).toFixed(1)}%" style="flex:${sp[s]};background:${col};height:100%;min-width:3px"></div>`;
+      }).join('');
+      const legend = keys.map(s=>{
+        const col = STATUS_COLORS[s]||DEFAULT_COLORS[ci++%DEFAULT_COLORS.length];
+        const lbl = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
+        return `<span style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:9px;color:var(--muted)"><span style="width:7px;height:7px;border-radius:2px;background:${col};display:inline-block"></span>${lbl} ${(sp[s]*100).toFixed(0)}%</span>`;
+      }).join('');
+      return `<div class="stat-card" style="min-width:200px;flex:2;max-width:400px"><div class="stat-label">Queue Status Mix</div><div style="display:flex;height:10px;border-radius:3px;overflow:hidden;margin:6px 0 5px;gap:1px">${bars}</div><div style="display:flex;flex-wrap:wrap;gap:3px 8px">${legend}</div></div>`;
+    })()}
   `;
 
   const maxC=Math.max(...agents.map(a=>state.distribution[a].length),1);
@@ -2399,6 +2468,63 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
         </div>
       </div>
       ${provTagsHtml?`<div style="padding:8px 18px 0;border-bottom:1px solid var(--border)">${provTagsHtml}</div>`:''}
+      ${(()=>{
+        // ── Status Mix Bar ──────────────────────────────────────────────────
+        // Shows this agent's actual status proportions vs queue target.
+        const sCounts = (state.agentStatusCounts || {})[agentName] || {};
+        const sProps  = state.statusProportions || {};
+        const knownStatuses = Object.keys(sProps).filter(s => sProps[s] > 0);
+        if (!knownStatuses.length || !rows.length) return '';
+        const STATUS_COLORS = {
+          'PATIENT PURSUIT':         '#f59e0b',
+          'BILL POR':                '#3b82f6',
+          'EOB REQUESTED':           '#10b981',
+          'BILL FILED':              '#6366f1',
+          'COMMERCIAL BILL FILED':   '#ec4899',
+          'VALIDATION PENDING - LEVEL 1': '#22d3ee',
+        };
+        const DEFAULT_COLORS = ['#a78bfa','#fb923c','#4ade80','#f472b6','#38bdf8','#facc15'];
+        let colorIdx = 0;
+        const rows_n = rows.length;
+        const bars = knownStatuses.map(s => {
+          const target = sProps[s];
+          const actual = (sCounts[s] || 0) / rows_n;
+          const diff = actual - target;
+          const col = STATUS_COLORS[s] || DEFAULT_COLORS[colorIdx++ % DEFAULT_COLORS.length];
+          const label = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1')
+                         .replace('COMMERCIAL BILL FILED','COM BILL')
+                         .replace('PATIENT PURSUIT','PAT PURSUIT')
+                         .replace('EOB REQUESTED','EOB REQ')
+                         .replace('BILL FILED','BILL FILED')
+                         .replace('BILL POR','BILL POR');
+          const diffStr = diff >= 0 ? `+${(diff*100).toFixed(1)}%` : `${(diff*100).toFixed(1)}%`;
+          const diffColor = Math.abs(diff) < 0.05 ? 'var(--muted)' : diff > 0 ? 'var(--green)' : '#f87171';
+          return `<div title="${s}: ${(actual*100).toFixed(1)}% actual vs ${(target*100).toFixed(1)}% target" style="flex:${Math.max(actual,0.01)};min-width:2px;background:${col};border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;cursor:default">
+            <div style="font-family:var(--mono);font-size:8px;color:rgba(0,0,0,0.7);padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center">${(actual*100).toFixed(0)}%</div>
+          </div>`;
+        }).join('');
+        const pills = knownStatuses.map(s => {
+          const target = sProps[s];
+          const actual = (sCounts[s] || 0) / rows_n;
+          const count = sCounts[s] || 0;
+          const diff = actual - target;
+          const col = STATUS_COLORS[s] || DEFAULT_COLORS[colorIdx++ % DEFAULT_COLORS.length];
+          const diffStr = diff >= 0 ? `+${(diff*100).toFixed(1)}%` : `${(diff*100).toFixed(1)}%`;
+          const diffColor = Math.abs(diff) < 0.05 ? 'var(--muted)' : diff > 0 ? 'var(--green)' : '#f87171';
+          const shortLabel = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
+          return `<div style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;">
+            <div style="width:8px;height:8px;border-radius:2px;background:${col};flex-shrink:0"></div>
+            <span style="color:var(--muted)">${shortLabel}</span>
+            <span style="color:var(--text)">${count}</span>
+            <span style="color:${diffColor}">(${diffStr})</span>
+          </div>`;
+        }).join('');
+        return `<div style="padding:8px 14px 8px;border-bottom:1px solid var(--border);">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Status Mix <span style="color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none">(vs queue target · +over −under)</span></div>
+          <div style="display:flex;gap:2px;height:22px;border-radius:4px;overflow:hidden;margin-bottom:6px">${bars}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 14px">${pills}</div>
+        </div>`;
+      })()}
       <div class="adc-body" style="max-height:none;overflow:visible">${html||'<div style="color:var(--muted);font-size:12px">No claims assigned</div>'}</div>
     </div>`;
   }).join('');
