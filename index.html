@@ -1,0 +1,3466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Queue Distributor v32 · EnableComp MVA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+  :root {
+    --bg: #080b12; --surface: #0e1420; --surface2: #141a28; --border: #1d2640;
+    --accent: #3b82f6; --accent2: #22d3ee; --green: #10b981; --amber: #f59e0b;
+    --red: #ef4444; --purple: #a855f7; --text: #e8edf5; --muted: #8898b8;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'Plus Jakarta Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 0 24px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 28px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 36px; flex-wrap: wrap; gap: 16px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: grid; place-items: center; font-size: 18px; }
+  .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-sub { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+  .header-badge { font-family: var(--mono); font-size: 11px; color: var(--accent2); background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2); padding: 6px 14px; border-radius: 20px; letter-spacing: 1px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-bottom: 36px; position: relative; }
+  .steps::before { content: ''; position: absolute; top: 50%; left: calc(33.33% - 0px); right: calc(33.33% - 0px); height: 2px; background: var(--border); transform: translateY(-50%); z-index: 0; }
+  .step { background: var(--surface); border: 1px solid var(--border); padding: 18px 20px; position: relative; transition: border-color 0.25s, background 0.25s; z-index: 1; cursor: default; }
+  .step:first-child { border-radius: 12px 0 0 12px; }
+  .step:last-child { border-radius: 0 12px 12px 0; }
+  .step::after { content: '›'; position: absolute; right: -14px; top: 50%; transform: translateY(-50%); color: var(--border); font-size: 22px; z-index: 2; line-height: 1; pointer-events: none; }
+  .step:last-child::after { display: none; }
+  @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } .step:first-child { border-radius: 12px 12px 0 0; } .step:last-child { border-radius: 0 0 12px 12px; } .step::after { display: none; } .steps::before { display: none; } }
+  .step.active { border-color: var(--accent); background: rgba(59,130,246,0.07); }
+  .step.done { border-color: var(--green); background: rgba(16,185,129,0.06); cursor: pointer; }
+  .step.done::after { color: var(--green); }
+  .step-num { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 2px; margin-bottom: 4px; }
+  .step-title { font-size: 13px; font-weight: 700; color: var(--text); }
+  .step.done .step-title { color: var(--green); }
+  .step.active .step-title { color: var(--accent); }
+  .step-meta { font-family: var(--mono); font-size: 11px; color: var(--green); margin-top: 4px; display: none; }
+  .step.done .step-meta { display: block; }
+  .step-status { position: absolute; top: 16px; right: 16px; width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background 0.3s, box-shadow 0.3s; }
+  .step.active .step-status { background: var(--accent); box-shadow: 0 0 10px var(--accent), 0 0 20px rgba(59,130,246,0.3); animation: pulse 2s ease infinite; }
+  .step.done .step-status { display: none; }
+  .step-check { position: absolute; top: 14px; right: 14px; color: var(--green); font-size: 14px; display: none; }
+  .step.done .step-check { display: block; }
+  .step.done:hover { border-color: var(--accent2) !important; background: rgba(34,211,238,0.06) !important; }
+  .step.done:hover .step-title { color: var(--accent2) !important; }
+  .step.done::before { content: '↩ go back'; position: absolute; bottom: 7px; right: 14px; font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0; transition: opacity 0.15s; letter-spacing: 0.5px; }
+  .step.done:hover::before { opacity: 1; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 8px var(--accent); } 50% { box-shadow: 0 0 14px var(--accent), 0 0 28px rgba(59,130,246,0.4); } }
+  
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+  .panel-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); flex-wrap: wrap; gap: 10px; }
+  .panel-title { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); }
+  .panel-body { padding: 24px; }
+  
+  .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 48px 32px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(59,130,246,0.04); }
+  .upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-label { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .upload-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .file-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .file-item { display: flex; align-items: center; gap: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 13px; animation: fadeSlide 0.2s ease; }
+  @keyframes fadeSlide { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .file-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .file-name { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-count { font-family: var(--mono); font-size: 11px; color: var(--accent2); }
+  .file-remove { cursor: pointer; color: var(--muted); font-size: 16px; line-height: 1; transition: color 0.2s; }
+  .file-remove:hover { color: var(--red); }
+  
+  .input-text { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; transition: border-color 0.2s; min-width: 150px; width: 100%; }
+  .input-text:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+  .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .config-item label { display: block; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  select.input-text { cursor: pointer; }
+  
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-family: var(--sans); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; letter-spacing: 0.3px; justify-content: center; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover:not(:disabled) { background: #2563eb; transform: translateY(-1px); }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  .btn-primary:disabled, .btn-secondary:disabled, .btn-success:disabled { opacity: 0.6; pointer-events: none; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .btn-success { background: var(--green); color: white; }
+  .btn-success:hover:not(:disabled) { background: #059669; transform: translateY(-1px); }
+  .btn-sm { padding: 7px 14px; font-size: 12px; }
+  
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+  .stat-value { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  
+  .dist-table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid rgba(30,37,53,0.6); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(59,130,246,0.04); }
+  
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 4px; font-family: var(--mono); font-size: 10px; font-weight: 700; white-space: nowrap; }
+  .badge-blue { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .badge-purple { background: rgba(168,85,247,0.15); color: #d8b4fe; }
+  
+  .dist-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .agent-dist-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; animation: fadeSlide 0.3s ease; }
+  .adc-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); }
+  .adc-name { font-size: 14px; font-weight: 700; }
+  .adc-count { font-family: var(--mono); font-size: 12px; color: var(--accent2); }
+  .adc-body { padding: 12px 18px; max-height: 320px; overflow-y: auto; }
+  .adc-group { margin-bottom: 10px; padding: 10px; border-radius: 6px; border-left: 3px solid var(--accent); background: rgba(59,130,246,0.04); }
+  .adc-group.related { border-left-color: var(--purple); background: rgba(168,85,247,0.04); }
+  .adc-group-label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .adc-claim { font-size: 12px; color: var(--text); padding: 2px 0; display: flex; align-items: center; gap: 6px; }
+  .adc-claim-id { font-family: var(--mono); color: var(--muted); font-size: 11px; }
+  
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+  
+  .balance-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(30,37,53,0.5); font-size: 12px; }
+  .balance-name { width: 160px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .balance-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .balance-bar { height: 100%; border-radius: 3px; }
+  .balance-num { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 40px; text-align: right; }
+  
+  .alert { padding: 14px 18px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert-info { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); color: #93c5fd; }
+  
+  #toast { position: fixed; bottom: 32px; right: 32px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px; z-index: 999; transform: translateY(20px); opacity: 0; transition: all 0.3s; pointer-events: none; max-width: 320px; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--green); color: var(--green); }
+  #toast.error { border-color: var(--red); color: var(--red); }
+  #toast.info { border-color: var(--accent); color: var(--accent); }
+  .hidden { display: none !important; }
+  
+  .filter-banner { background: rgba(16,185,129,0.07); border: 1px solid rgba(16,185,129,0.25); border-radius: 8px; padding: 10px 16px; font-family: var(--mono); font-size: 11px; color: var(--green); display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .filter-banner.amber { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.25); color: var(--amber); }
+  .filter-banner.red { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); color: var(--red); }
+  
+  .global-cap-row { display: flex; align-items: center; gap: 14px; background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.18); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; flex-wrap: wrap; }
+  .global-cap-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap; }
+  .global-cap-input { width: 80px; background: var(--bg); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 8px 10px; color: var(--text); font-family: var(--mono); font-size: 16px; font-weight: 700; text-align: center; outline: none; transition: border-color 0.2s; }
+  .global-cap-input:focus { border-color: var(--accent); }
+  .global-cap-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.55; min-width: 200px; }
+  
+  .status-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 11px; cursor: pointer; transition: all 0.2s; color: var(--text); user-select: none; font-family: var(--sans); }
+  .status-pill:hover { border-color: var(--muted); }
+  .status-pill:has(input:checked) { border-color: var(--accent); background: rgba(59,130,246,0.1); color: #93c5fd; }
+  .status-pill input { margin: 0; cursor: pointer; accent-color: var(--accent); }
+
+  .rel-pct-row { display: flex; align-items: center; gap: 14px; background: rgba(168,85,247,0.06); border: 1px solid rgba(168,85,247,0.2); border-radius: 10px; padding: 14px 18px; flex-wrap: wrap; margin-top: 16px; }
+  .rel-pct-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap; }
+  .rel-pct-slider { flex: 1; min-width: 140px; max-width: 240px; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; outline: none; cursor: pointer; }
+  .rel-pct-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--purple); border: 2px solid var(--bg); box-shadow: 0 0 8px rgba(168,85,247,0.5); cursor: pointer; }
+  .rel-pct-badge { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--purple); min-width: 52px; text-align: center; }
+  .rel-pct-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.55; min-width: 180px; }
+  
+  /* Collapsible panel hover */
+  .panel-header[onclick]:hover { background: rgba(59,130,246,0.04); }
+  .panel-header[onclick] { transition: background 0.15s; }
+
+  /* ── PRIOR QUEUE IMPORT ─────────────────────────────────────────── */
+  .prior-panel { background: rgba(168,85,247,0.05); border: 1px solid rgba(168,85,247,0.25); border-radius: 10px; padding: 16px 20px; margin-top: 16px; }
+  .prior-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .prior-panel-title { font-size: 13px; font-weight: 700; color: #d8b4fe; }
+  .prior-panel-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+  .prior-upload-zone { border: 2px dashed rgba(168,85,247,0.3); border-radius: 8px; padding: 18px 20px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+  .prior-upload-zone:hover, .prior-upload-zone.dragover { border-color: var(--purple); background: rgba(168,85,247,0.06); }
+  .prior-upload-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .prior-status { margin-top: 10px; font-family: var(--mono); font-size: 11px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .prior-agent-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.25); border-radius: 5px; padding: 3px 9px; font-size: 10px; color: #d8b4fe; white-space: nowrap; }
+  .equity-row { display: flex; align-items: center; gap: 14px; background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 10px; padding: 14px 18px; margin-top: 16px; flex-wrap: wrap; }
+  .equity-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap; }
+  .equity-toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+  .equity-toggle input { opacity: 0; width: 0; height: 0; }
+  .equity-slider { position: absolute; inset: 0; background: var(--border); border-radius: 12px; cursor: pointer; transition: background 0.2s; }
+  .equity-slider:before { content: ''; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform 0.2s, background 0.2s; }
+  .equity-toggle input:checked + .equity-slider { background: rgba(16,185,129,0.3); }
+  .equity-toggle input:checked + .equity-slider:before { transform: translateX(18px); background: var(--green); }
+  .equity-desc { font-size: 12px; color: var(--muted); flex: 1; line-height: 1.55; min-width: 200px; }
+
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* Unified Roster Table */
+  .roster-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .roster-table th { font-family:var(--mono); font-size:9px; letter-spacing:1.2px; text-transform:uppercase; color:var(--muted); text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); background:var(--surface2); white-space:nowrap; }
+  .roster-table td { padding:8px 10px; border-bottom:1px solid rgba(30,37,53,0.6); vertical-align:middle; }
+  .roster-table tr:last-child td { border-bottom:none; }
+  .roster-table tr:hover td { background:rgba(59,130,246,0.025); }
+  .roster-table tr.row-excluded td { opacity:0.45; }
+
+  .rt-avatar { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; font-size:11px; font-weight:700; flex-shrink:0; }
+  .rt-name { font-weight:700; font-size:13px; white-space:nowrap; }
+
+  .batch-sel { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:4px 8px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none; cursor:pointer; transition:border-color 0.2s; width:90px; }
+  .batch-sel.b2 { border-color:rgba(168,85,247,0.4); color:#d8b4fe; background:rgba(168,85,247,0.07); }
+  .batch-sel.b3 { border-color:rgba(34,211,238,0.3); color:#67e8f9; background:rgba(34,211,238,0.06); }
+  .role-sel { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:4px 8px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none; cursor:pointer; transition:border-color 0.2s; width:100px; }
+  .role-sel.role-am { border-color:rgba(251,191,36,0.5); color:#fbbf24; background:rgba(251,191,36,0.08); }
+  .role-sel.role-poc { border-color:rgba(52,211,153,0.5); color:#34d399; background:rgba(52,211,153,0.08); }
+  .role-sel.role-tm { border-color:var(--border); color:var(--muted); }
+
+  .cap-inp { width:62px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:4px 6px; color:var(--text); font-family:var(--mono); font-size:13px; font-weight:700; text-align:center; outline:none; transition:border-color 0.2s; }
+  .cap-inp.cap-override { border-color:rgba(168,85,247,0.5); color:var(--purple); }
+
+  .prov-tag { display:inline-flex; align-items:center; gap:5px; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); color:#93c5fd; border-radius:5px; padding:2px 8px 2px 6px; font-family:var(--mono); font-size:10px; margin:2px; white-space:nowrap; }
+  .prov-tag .ptd { cursor:pointer; opacity:0.5; line-height:1; transition:opacity 0.15s; font-size:12px; }
+  .prov-tag .ptd:hover { opacity:1; color:var(--red); }
+  .prov-tag.has-alpha { background:rgba(168,85,247,0.1); border-color:rgba(168,85,247,0.25); color:#d8b4fe; }
+
+  .prov-add-row { display:flex; gap:5px; align-items:center; margin-top:5px; flex-wrap:wrap; }
+  .prov-dd { flex:1; min-width:160px; max-width:260px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:5px 8px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none; cursor:pointer; transition:border-color 0.2s; }
+  .prov-dd option { background:var(--surface2); }
+  .alpha-inp { width:44px; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:5px 6px; color:var(--text); font-family:var(--mono); font-size:11px; text-align:center; text-transform:uppercase; outline:none; transition:border-color 0.2s; }
+  .alpha-sep { color:var(--muted); font-family:var(--mono); font-size:11px; align-self:center; }
+
+  .rt-toggle { height:26px; padding:0 10px; border-radius:6px; border:1px solid var(--border); background:transparent; cursor:pointer; color:var(--muted); font-size:10px; font-family:var(--mono); font-weight:700; letter-spacing:0.5px; transition:all 0.15s; white-space:nowrap; }
+  .rt-toggle:hover { background:rgba(239,68,68,0.1); border-color:var(--red); color:var(--red); }
+  .row-excluded .rt-toggle:hover { background:rgba(16,185,129,0.1); border-color:var(--green); color:var(--green); }
+  .rt-del { width:26px; height:26px; border-radius:6px; border:1px solid rgba(239,68,68,0.2); background:transparent; cursor:pointer; color:var(--red); opacity:0.4; font-size:13px; display:grid; place-items:center; transition:all 0.15s; }
+  .rt-del:hover { background:rgba(239,68,68,0.12); border-color:var(--red); opacity:1; }
+
+  .match-badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:4px; font-family:var(--mono); font-size:9px; font-weight:700; white-space:nowrap; }
+  .match-exact { background:rgba(168,85,247,0.15); color:#d8b4fe; }
+  .match-provider { background:rgba(34,211,238,0.12); color:#67e8f9; }
+
+  /* ── From styles.css ─────────────────────────────── */
+  .title { color: #5C6AC4; }
+
+  /* ── KEYBOARD SHORTCUT BAR ────────────────────────────────────────── */
+  .kbd-hint-bar { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: rgba(59,130,246,0.04); border: 1px solid rgba(59,130,246,0.12); border-radius: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .kbd-hint-label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+  .kbd-hint { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .kbd { display: inline-block; background: var(--surface2); border: 1px solid var(--border); border-bottom: 2px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--text); letter-spacing: 0px; }
+
+  /* ── RUN CONFIRMATION MODAL ────────────────────────────────────────── */
+  #runModal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(8,11,18,0.8); backdrop-filter: blur(6px); align-items: center; justify-content: center; }
+  #runModal.active { display: flex; }
+  .run-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 24px 64px rgba(0,0,0,0.6); animation: modalIn 0.2s ease; }
+  @keyframes modalIn { from { opacity:0; transform: scale(0.96) translateY(8px); } to { opacity:1; transform: scale(1) translateY(0); } }
+  .run-modal-title { font-size: 18px; font-weight: 800; margin-bottom: 6px; color: var(--text); }
+  .run-modal-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 20px; line-height: 1.7; }
+  .run-modal-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+  .run-modal-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+  .run-modal-stat-label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 4px; }
+  .run-modal-stat-val { font-family: var(--mono); font-size: 20px; font-weight: 700; }
+  .run-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── CONFIG SECTION DIVIDERS ───────────────────────────────────────── */
+  .config-section-head { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; margin: 20px 0 12px; display: flex; align-items: center; gap: 10px; }
+  .config-section-head::after { content: ''; flex: 1; height: 1px; background: rgba(59,130,246,0.15); }
+
+  /* ── ABSENT PILL: use strikethrough instead of 45% opacity for excluded roster rows */
+  .roster-table tr.row-excluded td { opacity: 1 !important; }
+  .roster-table tr.row-excluded .rt-name { text-decoration: line-through; text-decoration-color: rgba(239,68,68,0.5); color: var(--muted) !important; }
+  .roster-table tr.row-excluded .rt-avatar { opacity: 0.4; }
+
+  /* ── AGENT CARD: batch pill count in header ──────────────────────────── */
+  .adc-batch-pills { display: flex; gap: 4px; flex-wrap: wrap; }
+  .adc-batch-pill { font-family: var(--mono); font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+  .adc-batch-pill.b2 { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+  .adc-batch-pill.b3 { background: rgba(34,211,238,0.12); color: #67e8f9; border: 1px solid rgba(34,211,238,0.25); }
+
+  /* ── LOAD CHART: prominent, always visible above cards ──────────────── */
+  .load-chart-prominent { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 20px; }
+  .load-chart-prominent .load-bars { height: 160px !important; align-items: flex-end; }
+  .load-chart-prominent .load-bar-col { min-width: 32px !important; }
+  .load-chart-prominent .load-bar-num { font-size: 10px !important; color: var(--text) !important; }
+  .load-chart-prominent .load-bar-label { font-size: 10px !important; }
+  .load-chart-prominent .load-bar-inner { border-radius: 4px 4px 0 0 !important; min-height: 6px; }
+
+  /* ── FILENAME PREVIEW: stand-alone highlighted pill ─────────────────── */
+  .fn-preview-pill { display: inline-flex; align-items: center; gap: 8px; background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 8px; padding: 6px 12px; }
+  .fn-preview-text { font-family: var(--mono); font-size: 12px; color: var(--accent2); }
+  .fn-copy-btn { background: none; border: 1px solid rgba(34,211,238,0.3); border-radius: 5px; padding: 2px 8px; font-family: var(--mono); font-size: 10px; color: var(--accent2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .fn-copy-btn:hover { background: rgba(34,211,238,0.1); }
+  .fn-copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  /* ── MUTED TEXT FLOOR: enforce ≥ #8898b8 for readability ────────────── */
+  .step-num, .panel-title, .load-bar-label, .adc-group-label, .config-item label,
+  .stat-label, .balance-num, .file-count { color: var(--muted) !important; }
+  .adc-claim-id { font-size: 11px !important; color: var(--muted); }
+
+  /* hint texts floor */
+  .config-item > div { font-size: 11px !important; }
+
+  .dirty-chip { display: none; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--amber); background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); padding: 4px 10px; border-radius: 12px; letter-spacing: 0.5px; }
+  .dirty-chip.visible { display: inline-flex; }
+
+  /* Export progress */
+  #export-progress { display: none; align-items: center; gap: 10px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; font-size: 12px; color: var(--accent); font-family: var(--mono); }
+  #export-progress.visible { display: flex; }
+  .ep-bar-wrap { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .ep-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.2s; }
+
+  /* Health-accented stat cards */
+  .stat-card.at-cap { border-color: var(--amber); background: rgba(245,158,11,0.05); }
+  .stat-card.at-cap .stat-value { color: var(--amber); }
+
+  /* Load distribution mini-chart */
+  .load-chart-wrap { margin-top: 16px; }
+  .load-chart-title { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .load-bars { display: flex; align-items: flex-end; gap: 4px; height: 56px; }
+  .load-bar-col { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 24px; }
+  .load-bar-inner { border-radius: 3px 3px 0 0; width: 100%; background: var(--accent); transition: height 0.4s ease; }
+  .load-bar-inner.at-cap { background: var(--amber); }
+  .load-bar-inner.over-cap { background: var(--red); }
+  .load-bar-label { font-family: var(--mono); font-size: 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
+  .load-bar-num { font-family: var(--mono); font-size: 8px; color: var(--text); }
+
+  /* Provider drawer / accordion */
+  .prov-drawer { display: none; padding: 10px 14px; background: var(--bg); border-top: 1px solid var(--border); animation: fadeSlide 0.15s ease; }
+  .prov-drawer.open { display: block; }
+  .prov-expand-btn { font-family: var(--mono); font-size: 9px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; cursor: pointer; transition: all 0.15s; margin-left: 4px; }
+  .prov-expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Per-agent card: expand toggle for singles */
+  .adc-expand-row { font-family: var(--mono); font-size: 10px; color: var(--accent); cursor: pointer; padding: 4px 0; display: inline-flex; align-items: center; gap: 4px; }
+  .adc-expand-row:hover { text-decoration: underline; }
+
+  /* ── ABSENT PANEL ─────────────────────────────────────────────────── */
+  .absent-panel {
+    background: linear-gradient(135deg, rgba(245,158,11,0.07) 0%, rgba(239,68,68,0.05) 100%);
+    border: 2px solid rgba(245,158,11,0.35);
+    border-radius: 14px;
+    padding: 22px 24px 20px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .absent-panel::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent, transparent 18px,
+      rgba(245,158,11,0.025) 18px, rgba(245,158,11,0.025) 20px
+    );
+    pointer-events: none;
+  }
+  .absent-panel-head {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .absent-panel-icon {
+    font-size: 26px; line-height: 1; flex-shrink: 0;
+  }
+  .absent-panel-title {
+    font-size: 17px; font-weight: 800; color: var(--amber); letter-spacing: -0.3px; flex: 1;
+  }
+  .absent-panel-sub {
+    font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 16px; line-height: 1.6;
+    padding-left: 38px;
+  }
+  .absent-pill-grid {
+    display: flex; flex-wrap: wrap; gap: 8px; padding-left: 0;
+  }
+  .absent-pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 14px 8px 10px;
+    border-radius: 30px;
+    border: 2px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    font-family: var(--sans); font-size: 13px; font-weight: 600;
+    cursor: pointer; user-select: none;
+    transition: all 0.16s ease;
+    position: relative;
+  }
+  .absent-pill:hover { border-color: var(--amber); background: rgba(245,158,11,0.08); }
+  .absent-pill.absent {
+    background: rgba(239,68,68,0.12);
+    border-color: var(--red);
+    color: #fca5a5;
+    text-decoration: line-through;
+    text-decoration-color: rgba(239,68,68,0.6);
+  }
+  .absent-pill .ap-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+    transition: background 0.15s;
+    box-shadow: 0 0 6px rgba(16,185,129,0.5);
+  }
+  .absent-pill.absent .ap-dot {
+    background: var(--red);
+    box-shadow: 0 0 6px rgba(239,68,68,0.5);
+  }
+  .absent-pill .ap-x {
+    display: none; font-size: 14px; color: var(--red); font-weight: 900; line-height: 1;
+  }
+  .absent-pill.absent .ap-x { display: inline; }
+  .absent-pill.absent .ap-dot { display: none; }
+  .absent-count-badge {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 20px;
+    background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5;
+    display: none;
+    animation: fadeSlide 0.2s ease;
+  }
+  .absent-count-badge.visible { display: inline-flex; align-items: center; gap: 5px; }
+  .absent-clear-btn {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s; letter-spacing: 0.5px;
+  }
+  .absent-clear-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* ── STICKY EXPORT BAR ───────────────────────────────────────────── */
+  .sticky-export-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: rgba(16,20,28,0.97); border-top: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    padding: 10px 24px; display: none; align-items: center;
+    gap: 8px; flex-wrap: wrap; justify-content: flex-end;
+  }
+  .sticky-export-bar.visible { display: flex; }
+  .sticky-export-bar .seb-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-right: 4px; }
+
+  /* ── UNASSIGNED PANEL ────────────────────────────────────────────── */
+  .unassigned-panel { background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; margin-top: 16px; overflow: hidden; }
+  .unassigned-panel-head { padding: 12px 18px; display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .unassigned-panel-head:hover { background: rgba(239,68,68,0.06); }
+  .unassigned-table { font-size: 12px; }
+  .unassigned-table th { background: rgba(239,68,68,0.08); color: #fca5a5; }
+  .unassigned-table td { border-color: rgba(239,68,68,0.1); }
+  .ua-reason { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .ua-reason.cap { color: var(--amber); }
+  .ua-reason.date { color: var(--accent2); }
+  .ua-reason.sys { color: var(--muted); }
+  .ua-reason.status { color: var(--purple); }
+
+  /* ── FILENAME TEMPLATE ROW ───────────────────────────────────────── */
+  .fn-template-row { display: flex; align-items: center; gap: 10px; background: rgba(34,211,238,0.05); border: 1px solid rgba(34,211,238,0.18); border-radius: 10px; padding: 12px 18px; margin-bottom: 12px; flex-wrap: wrap; }
+  .fn-template-row label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap; }
+  .fn-preview { font-family: var(--mono); font-size: 11px; color: var(--accent2); background: var(--bg); border: 1px solid rgba(34,211,238,0.2); border-radius: 6px; padding: 4px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px; }
+
+  /* ── COPY-CLAIM-IDS button on agent card ─────────────────────────── */
+  .adc-copy-btn { font-family: var(--mono); font-size: 9px; background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+  .adc-copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .adc-copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+  /* ── DIFF BADGE ──────────────────────────────────────────────────── */
+  .diff-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 4px; font-family: var(--mono); font-size: 9px; font-weight: 700; }
+  .diff-moved { background: rgba(245,158,11,0.15); color: var(--amber); }
+  .diff-new   { background: rgba(16,185,129,0.15); color: var(--green); }
+
+  /* ── DUPE WARNING banner ─────────────────────────────────────────── */
+  .dupe-banner { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 10px 16px; font-family: var(--mono); font-size: 11px; color: var(--amber); display: flex; align-items: flex-start; gap: 8px; margin-bottom: 12px; }
+
+  /* ── ROSTER PRESET BUTTONS ───────────────────────────────────────── */
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 10px 20px; border-top: 1px solid var(--border); background: rgba(59,130,246,0.03); }
+  .preset-btn { font-family: var(--mono); font-size: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 4px 12px; cursor: pointer; color: var(--muted); transition: all 0.15s; white-space: nowrap; }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-btn.del-preset { border-color: rgba(239,68,68,0.2); }
+  .preset-btn.del-preset:hover { border-color: var(--red); color: var(--red); }
+  .preset-save-input { background: var(--bg); border: 1px solid var(--border); border-radius: 16px; padding: 4px 10px; color: var(--text); font-family: var(--mono); font-size: 10px; outline: none; width: 140px; transition: border-color 0.2s; }
+  .preset-save-input:focus { border-color: var(--accent); }
+
+  /* ── RE-RUN BUTTON (Step 3 top bar) ─────────────────────────────── */
+  .rerun-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+
+  /* ── v28 POLISH ────────────────────────────────────────────────────── */
+
+  /* Panel depth & elevation */
+  .panel {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.25);
+    transition: box-shadow 0.2s;
+  }
+  .panel:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.3); }
+
+  /* Surface gradient for depth */
+  .panel { background: linear-gradient(160deg, #12161f 0%, #0f131a 100%); }
+
+  /* Panel header — stronger, more readable */
+  .panel-header { border-bottom: 1px solid rgba(30,37,53,0.9); }
+  .panel-title {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 2px !important;
+    color: var(--text) !important;
+    opacity: 0.7;
+  }
+
+  /* Collapsible panel headers — clear affordance */
+  .panel-header[onclick] { cursor: pointer !important; }
+  .panel-header[onclick]:hover {
+    background: rgba(59,130,246,0.07) !important;
+  }
+  .panel-header[onclick] .panel-title { opacity: 1; }
+
+  /* Collapse chevron — bigger, more visible */
+  .collapse-icon {
+    font-size: 11px; color: var(--muted);
+    transition: transform 0.25s cubic-bezier(.4,0,.2,1);
+    display: inline-block; flex-shrink: 0;
+    width: 18px; text-align: center;
+  }
+
+  /* Smooth panel body transitions using max-height */
+  .collapsible-body {
+    overflow: hidden;
+    transition: max-height 0.3s cubic-bezier(.4,0,.2,1), opacity 0.25s ease;
+    max-height: 4000px;
+    opacity: 1;
+  }
+  .collapsible-body.collapsed {
+    max-height: 0 !important;
+    opacity: 0;
+  }
+
+  /* Stat cards — accent left border */
+  .stat-card {
+    border-left: 3px solid var(--border) !important;
+    transition: border-color 0.2s, transform 0.15s;
+    background: linear-gradient(135deg, #12161f 0%, #0f131a 100%) !important;
+  }
+  .stat-card:hover { transform: translateY(-1px); }
+  .stat-card.sc-total  { border-left-color: var(--muted) !important; }
+  .stat-card.sc-dist   { border-left-color: var(--accent) !important; }
+  .stat-card.sc-rel    { border-left-color: var(--purple) !important; }
+  .stat-card.sc-match  { border-left-color: var(--accent2) !important; }
+  .stat-card.sc-cap    { border-left-color: var(--green) !important; }
+  .stat-card.sc-warn   { border-left-color: var(--amber) !important; }
+  .stat-card.at-cap    { border-left-color: var(--red) !important; }
+  .stat-label { font-size: 11px !important; letter-spacing: 1.5px !important; }
+  .stat-sub   { font-size: 11px !important; }
+
+  /* Primary CTA — glowing presence */
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    box-shadow: 0 0 0 0 rgba(59,130,246,0);
+    transition: all 0.18s ease !important;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 0 16px rgba(59,130,246,0.45), 0 4px 12px rgba(59,130,246,0.25) !important;
+    transform: translateY(-2px) !important;
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0) !important;
+    box-shadow: none !important;
+  }
+  /* Success button glow */
+  .btn-success:hover:not(:disabled) {
+    box-shadow: 0 0 14px rgba(16,185,129,0.4), 0 4px 10px rgba(16,185,129,0.2) !important;
+  }
+
+  /* Toolbar primary button emphasis */
+  .toolbar .btn-primary {
+    padding: 11px 28px !important;
+    font-size: 14px !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  /* Step indicator — done steps are clickable — see step styles above */
+
+  /* Distribution spinner overlay */
+  #distSpinner {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(10,12,16,0.7); backdrop-filter: blur(4px);
+    flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+  }
+  #distSpinner.active { display: flex; }
+  .spinner-ring {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 3px solid rgba(59,130,246,0.15);
+    border-top-color: var(--accent);
+    animation: spin 0.7s linear infinite;
+  }
+  .spinner-label { font-family: var(--mono); font-size: 12px; color: var(--accent2); letter-spacing: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Load chart — taller, more meaningful */
+  .load-bars { height: 100px !important; align-items: flex-end; }
+  .load-bar-col { min-width: 28px !important; }
+  .load-bar-num { font-size: 9px !important; }
+  .load-bar-label { font-size: 9px !important; }
+
+  /* Font size floor — nothing user-facing below 11px */
+  .adc-group-label { font-size: 10px !important; }
+  .adc-claim-id    { font-size: 11px !important; }
+  .adc-claim       { font-size: 12px !important; }
+  .match-badge     { font-size: 10px !important; }
+  .fn-template-row label span { font-size: 10px !important; }
+
+  /* Rerun bar — remove inline bar, sticky bar is canonical */
+  .rerun-bar { display: none !important; }
+
+  /* Step 3 toolbar — hide duplicate bottom export row, sticky covers it */
+  #panel-results > .toolbar { display: none !important; }
+
+  /* Upload zone — stronger active state */
+  .upload-zone {
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s !important;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    box-shadow: 0 0 0 4px rgba(59,130,246,0.12), inset 0 0 24px rgba(59,130,246,0.03) !important;
+  }
+
+  /* Config item hint text floor */
+  .config-item > div[style*="9px"] { font-size: 11px !important; }
+
+  /* Toolbar spacing */
+  .toolbar { margin-top: 8px !important; padding: 4px 0 !important; }
+
+  /* Balance bar rows — slightly taller */
+  .balance-row { padding: 10px 0 !important; }
+  .balance-bar-wrap { height: 8px !important; border-radius: 4px !important; }
+  .balance-bar { border-radius: 4px !important; }
+
+  /* Step done click hint — see step styles above */
+
+  /* Panel section dividers — more visible */
+  .divider { background: rgba(59,130,246,0.12) !important; }
+
+  /* Absent pill grid gap */
+  .absent-pill-grid { gap: 10px !important; }
+
+  /* Load chart wrap */
+  .load-chart-wrap {
+    background: rgba(59,130,246,0.03);
+    border: 1px solid rgba(59,130,246,0.1);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 16px;
+  }
+  .load-chart-title { font-size: 11px !important; margin-bottom: 14px !important; }
+
+  /* Summary table row hover — smoother */
+  tr:hover td { background: rgba(59,130,246,0.06) !important; transition: background 0.1s; }
+
+  /* Per-agent card — hover lift */
+  .agent-dist-card {
+    transition: box-shadow 0.2s, transform 0.15s !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3) !important;
+  }
+  .agent-dist-card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+    transform: translateY(-2px) !important;
+  }
+
+  /* Filter banners — slightly more padding */
+  .filter-banner { padding: 12px 18px !important; font-size: 12px !important; }
+
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚖️</div>
+      <div>
+        <div class="logo-text">Queue Distributor</div>
+        <div class="logo-sub">EnableComp · MVA Team · v32</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="header-badge">RELATED · PROVIDER-MATCHED</div>
+      <div id="currentTime" style="font-family:var(--mono);font-size:10px;color:var(--accent2);background:var(--surface2);border:1px solid rgba(34,211,238,0.2);padding:5px 12px;border-radius:20px;letter-spacing:1px;text-align:center" title="PH local time · US Eastern offset"></div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:5px 12px;border-radius:20px;letter-spacing:1px">v30</div>
+    </div>
+  </header>
+
+  <div class="steps">
+    <div class="step active" id="step1" title="Upload Alpha Lists"><div class="step-num">STEP 01</div><div class="step-title">Upload Alpha Lists</div><div class="step-meta" id="step1-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
+    <div class="step" id="step2" title="Configure Agents &amp; Rules"><div class="step-num">STEP 02</div><div class="step-title">Configure Agents &amp; Rules</div><div class="step-meta" id="step2-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
+    <div class="step" id="step3" title="Distribute &amp; Export"><div class="step-num">STEP 03</div><div class="step-title">Distribute &amp; Export</div><div class="step-meta" id="step3-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div id="panel-upload">
+    <div class="kbd-hint-bar">
+      <span class="kbd-hint-label">Shortcuts</span>
+      <span class="kbd-hint"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Enter</kbd> Advance step</span>
+      <span class="kbd-hint"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Shift</kbd>+<kbd class="kbd">E</kbd> Export all</span>
+      <span class="kbd-hint"><kbd class="kbd">Ctrl</kbd>+<kbd class="kbd">Shift</kbd>+<kbd class="kbd">R</kbd> Re-run</span>
+      <span class="kbd-hint"><kbd class="kbd">?</kbd> Show all</span>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">📂 Upload Queue Files</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">CSV / XLSX / XLS</span></div>
+      <div class="panel-body">
+        <div class="alert alert-info">
+          <span>ℹ️</span>
+          <span>Upload one or multiple alpha list exports from Enforcer. All files will be merged, duplicates removed by ClaimID. Expected columns: <strong>ClaimID, Last 4 SSN, Patient FN, Patient LN, Patient DOB</strong>, etc.</span>
+        </div>
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" multiple accept=".csv,.xlsx,.xls">
+          <div class="upload-icon">📋</div>
+          <div class="upload-label">Drop files here or click to browse</div>
+          <div class="upload-sub">Supports .csv, .xlsx, .xls — multiple files OK</div>
+        </div>
+        <div class="file-list" id="fileList"></div>
+
+        <!-- Prior Queue Import -->
+        <div class="prior-panel">
+          <div class="prior-panel-head">
+            <span style="font-size:18px">🔁</span>
+            <div class="prior-panel-title">Import Previous Queue Output <span style="font-family:var(--mono);font-size:9px;color:var(--purple);background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);padding:2px 7px;border-radius:10px;letter-spacing:1px;margin-left:4px">OPTIONAL</span></div>
+            <button onclick="clearPriorQueue()" style="margin-left:auto;font-family:var(--mono);font-size:10px;background:none;border:1px solid rgba(168,85,247,0.3);color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer" title="Clear all prior files">× Clear</button>
+          </div>
+          <div class="prior-panel-sub"><strong style="color:#d8b4fe">Why use this?</strong> If one agent got a lot of related-claim groups last week, this lets the tool give them fewer this week — keeping workload fair over time. Just drop the individual XLSX files from last session's ZIP here (multi-select or one by one). The tool reads each filename to identify the agent — no claims are added to the current queue.</div>
+          <div class="prior-upload-zone" id="priorUploadZone">
+            <input type="file" id="priorFileInput" accept=".xlsx,.xls" multiple>
+            <div style="font-size:22px;margin-bottom:6px">📥</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px">Drop agent XLSX files here (multi-select OK)</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Agent name parsed from filename — reference only, no claims added</div>
+          </div>
+          <div class="prior-status" id="priorStatus"></div>
+          <div id="priorMetaHints" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(59,130,246,0.07);border:1px solid rgba(59,130,246,0.2);border-radius:6px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.6"></div>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar" style="justify-content:flex-end">
+      <span id="step1-info" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></span>
+      <button class="btn btn-primary" id="btnStep1Next" disabled onclick="goStep2()">Configure Agents →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div id="panel-agents" class="hidden">
+
+    <!-- ░░░ ABSENT AGENTS QUICK-PANEL ░░░ -->
+    <div class="absent-panel" id="absentPanel">
+      <div class="absent-panel-head">
+        <div class="absent-panel-icon">🚫</div>
+        <div class="absent-panel-title">Who's absent today?</div>
+        <span class="absent-count-badge" id="absentCountBadge"></span>
+        <button class="absent-clear-btn" id="absentClearBtn" onclick="clearAllAbsent()" style="display:none">✕ Clear</button>
+      </div>
+      <div class="absent-panel-sub">Click any agent's name to mark them <strong style="color:#fca5a5">absent today</strong> — they'll be completely skipped during distribution and won't appear in any exports.</div>
+      <div class="absent-pill-grid" id="absentPillGrid"></div>
+    </div>
+
+    <!-- Unified Roster + Provider Config -->
+    <div class="panel">
+      <div class="panel-header" style="cursor:pointer" onclick="toggleRosterPanel(event)" title="Click to expand/collapse">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="rosterCollapseIcon" class="collapse-icon">▼</span>
+          <span class="panel-title">👥 Team Roster &amp; Providers</span>
+          <span id="agentCount" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+          <span id="savedRoster-badge" style="display:none;font-family:var(--mono);font-size:10px;color:var(--green);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25);padding:3px 9px;border-radius:12px;letter-spacing:0.5px">💾 SETTINGS SAVED</span>
+          <span class="dirty-chip" id="dirty-chip">⚠ Unsaved changes</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary btn-sm" onclick="saveSettings()">💾 Save</button>
+          <button class="btn btn-secondary btn-sm" id="btnClearRoster" onclick="clearSettings()" style="display:none">🗑 Clear</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetProvAssignments()" title="Reset providers to defaults">↺ Reset</button>
+        </div>
+      </div>
+      <div class="panel-body" style="padding:0;display:none" id="rosterPanelBody">
+        <div class="alert alert-info" style="margin:16px 20px 0;border-radius:8px">
+          <span>🎯</span>
+          <span>Each agent has a <strong>Batch</strong>, optional <strong>Cap</strong>, and <strong>Provider assignments</strong> (with optional A–Z alpha split on last name). Priority 1 = equity. Priority 2 = provider match nudge.</span>
+        </div>
+
+        <!-- Global cap row -->
+        <div class="global-cap-row" style="margin:16px 20px 10px;border-radius:10px">
+          <label>Global Cap<br><span style="font-size:9px">(all agents)</span></label>
+          <input type="number" class="global-cap-input" id="globalCapInput" min="1" max="9999" value="9999" placeholder="9999" oninput="applyGlobalCap(this.value)">
+          <div class="global-cap-desc"><strong>Applies to all agents.</strong> Default 9999 = max (no limit). Override per-agent in the Cap column (shows purple). Saved with roster.</div>
+        </div>
+
+        <div style="overflow-x:auto;padding:0 0 4px">
+          <table class="roster-table" id="rosterTable">
+            <thead>
+              <tr>
+                <th style="width:36px"></th>
+                <th style="min-width:160px">Agent</th>
+                <th style="width:110px">Role</th>
+                <th style="width:100px">Batch</th>
+                <th style="width:80px">Cap</th>
+                <th>Assigned Providers &amp; Alpha Splits</th>
+                <th style="width:90px">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="rosterBody"></tbody>
+          </table>
+        </div>
+
+        <div class="add-agent-row" style="padding:12px 20px 16px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="text" class="input-text" id="newAgentInput" placeholder="New agent name…" style="max-width:280px" onkeydown="if(event.key==='Enter') addAgent()">
+          <select class="batch-sel" id="newAgentBatch" style="width:100px; padding: 10px 8px;">
+            <option value="">No Batch</option>
+            <option value="Batch 2">Batch 2</option>
+            <option value="Batch 3">Batch 3</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="addAgent()" style="height:36px;">+ Add Agent</button>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:4px">MVA Bilingual Team always excluded</span>
+        </div>
+        <!-- Roster Presets -->
+        <div class="preset-row" id="presetRow">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">Absence Presets:</span>
+          <div id="presetChips"></div>
+          <input type="text" class="preset-save-input" id="presetNameInput" placeholder="Preset name…" maxlength="30">
+          <button class="btn btn-secondary btn-sm" onclick="saveAbsencePreset()" style="font-size:10px;padding:4px 10px">💾 Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Distribution Rules -->
+    <div class="panel">
+      <div class="panel-header" style="cursor:pointer" onclick="toggleRulesPanel()" title="Click to expand/collapse">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="rulesCollapseIcon" class="collapse-icon">▼</span>
+          <span class="panel-title">⚙️ Distribution Rules</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ Set date filter here before running</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="rulesHintSpan">(click to collapse)</span>
+        </div>
+      </div>
+      <div class="panel-body" id="rulesPanelBody" style="display:none">
+        <div class="config-section-head">Column Mapping</div>
+        <div class="config-grid">
+          <div class="config-item">
+            <label>Related Claims Key</label>
+            <select class="input-text" id="relatedKey">
+              <option value="ssn_dob">Last 4 SSN + Date of Birth (Recommended)</option>
+              <option value="ssn_name">Last 4 SSN + Last Name</option>
+              <option value="acct">Patient Account Number</option>
+              <option value="name_dob">Last Name + Date of Birth</option>
+            </select>
+          </div>
+          <div class="config-item">
+            <label>Review Date Filter</label>
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="date" class="input-text" id="reviewDateFilter" style="flex:1;cursor:pointer">
+              <button class="btn btn-secondary btn-sm" onclick="setReviewDateToday()" title="PH is 1 day ahead of US — clicking this sets to US yesterday, which is PH today" style="height: 38px;">Set to Today (PH) 🇵🇭</button>
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:5px;letter-spacing:0.5px">Leave blank = include all dates. Claims reviewed <em>after</em> this date will be excluded from distribution.</div>
+          </div>
+          <div class="config-item">
+            <label>Review Date Column</label>
+            <input type="text" class="input-text" id="reviewDateCol" value="Review Dt" placeholder="e.g. Review Dt">
+          </div>
+          <div class="config-item">
+            <label>MVA Bilingual Team</label>
+            <select class="input-text" id="excludeBilingual">
+              <option value="yes">Auto-exclude MVA Bilingual Team</option>
+              <option value="no">Include MVA Bilingual Team</option>
+            </select>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:5px;letter-spacing:0.5px">Checks 'Assigned To' or 'Owner' columns.</div>
+          </div>
+        </div>
+        
+        <!-- Batch Status Limits -->
+        <div class="divider" style="margin: 20px 0 16px; background: rgba(59,130,246,0.15)"></div>
+        <div class="config-section-head">Batch Status Filters</div>
+        <div class="config-grid">
+          <div class="config-item">
+            <label>Status Column Name</label>
+            <input type="text" class="input-text" id="statusCol" value="Status" placeholder="e.g. Status">
+            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:5px;letter-spacing:0.5px">Column used for matching.</div>
+          </div>
+          <div class="config-item" style="grid-column: 1 / -1;">
+            <label style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+              <span>Batch 2 Allowed Statuses <span style="text-transform:none;color:var(--muted);font-weight:normal;letter-spacing:0">(Uncheck all to allow ANY status)</span></span>
+              <label class="status-pill" style="margin:0;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08)" title="Toggle all"><input type="checkbox" id="checkAllBatch2" checked onchange="toggleAllBatchStatuses('batch2Checkboxes',this.checked)"><span>Check All</span></label>
+            </label>
+            <div class="status-checks" id="batch2Checkboxes">
+              <label class="status-pill"><input type="checkbox" value="Bill Filed" checked onchange="syncBatchAllCheckbox('batch2Checkboxes','checkAllBatch2');autoSaveSettingsIfExists()"><span>Bill Filed</span></label>
+              <label class="status-pill"><input type="checkbox" value="Bill POR" checked onchange="syncBatchAllCheckbox('batch2Checkboxes','checkAllBatch2');autoSaveSettingsIfExists()"><span>Bill POR</span></label>
+              <label class="status-pill"><input type="checkbox" value="Commercial Bill Filed" checked onchange="syncBatchAllCheckbox('batch2Checkboxes','checkAllBatch2');autoSaveSettingsIfExists()"><span>Commercial Bill Filed</span></label>
+              <label class="status-pill"><input type="checkbox" value="Patient Pursuit" checked onchange="syncBatchAllCheckbox('batch2Checkboxes','checkAllBatch2');autoSaveSettingsIfExists()"><span>Patient Pursuit</span></label>
+              <label class="status-pill"><input type="checkbox" value="EOB Requested" checked onchange="syncBatchAllCheckbox('batch2Checkboxes','checkAllBatch2');autoSaveSettingsIfExists()"><span>EOB Requested</span></label>
+            </div>
+          </div>
+          <div class="config-item" style="grid-column: 1 / -1;">
+            <label style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+              <span>Batch 3 Allowed Statuses <span style="text-transform:none;color:var(--muted);font-weight:normal;letter-spacing:0">(Uncheck all to allow ANY status)</span></span>
+              <label class="status-pill" style="margin:0;border-color:rgba(34,211,238,0.4);background:rgba(34,211,238,0.06)" title="Toggle all"><input type="checkbox" id="checkAllBatch3" checked onchange="toggleAllBatchStatuses('batch3Checkboxes',this.checked)"><span>Check All</span></label>
+            </label>
+            <div class="status-checks" id="batch3Checkboxes">
+              <label class="status-pill"><input type="checkbox" value="Bill Filed" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>Bill Filed</span></label>
+              <label class="status-pill"><input type="checkbox" value="Bill POR" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>Bill POR</span></label>
+              <label class="status-pill"><input type="checkbox" value="Commercial Bill Filed" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>Commercial Bill Filed</span></label>
+              <label class="status-pill"><input type="checkbox" value="Patient Pursuit" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>Patient Pursuit</span></label>
+              <label class="status-pill"><input type="checkbox" value="EOB Requested" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>EOB Requested</span></label>
+              <label class="status-pill"><input type="checkbox" value="Validation Pending - Level 1" checked onchange="syncBatchAllCheckbox('batch3Checkboxes','checkAllBatch3');autoSaveSettingsIfExists()"><span>Validation Pending - Level 1</span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Related Claims % limiter -->
+        <div class="rel-pct-row">
+          <label>Related Claims<br><span style="font-size:9px">per agent max</span></label>
+          <span class="rel-pct-badge" id="relPctBadge">100%</span>
+          <input type="range" class="rel-pct-slider" id="relPctSlider" min="30" max="100" step="5" value="100"
+            style="background: linear-gradient(to right, var(--purple) 100%, var(--border) 100%)"
+            oninput="updateRelPct(this.value)">
+          <div class="rel-pct-desc">
+            <strong>Related group cap per agent.</strong> Leave at 100% unless one agent is getting overwhelmed with related-claim families. Lowering it forces the tool to spread them more evenly — but may leave some groups unassigned.
+          </div>
+        </div>
+
+        <!-- Equity Mode -->
+        <div class="equity-row">
+          <label>Equity Mode<br><span style="font-size:9px">Related Claims</span></label>
+          <label class="equity-toggle"><input type="checkbox" id="equityModeToggle" checked onchange="autoSaveSettingsIfExists()"><span class="equity-slider"></span></label>
+          <div class="equity-desc">
+            <strong style="color:var(--green)">Recommended — leave this ON.</strong> Balances both the number <em>and</em> size of related-claim groups across agents — so no one gets stuck with all the big families. If you imported last session's files above, agents who had heavier loads last time automatically receive lighter loads this run.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toolbar" style="justify-content:space-between">
+      <button class="btn btn-secondary" onclick="goStep1()">← Back</button>
+      <button class="btn btn-primary" onclick="goStep3()">Run Distribution →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div id="panel-results" class="hidden">
+    <div class="rerun-bar">
+      <button class="btn btn-primary btn-sm" onclick="rerunDistribution()">🔄 Re-run Distribution</button>
+      <div id="lastRunTime" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></div>
+    </div>
+    <div id="dupeBannerSlot"></div>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="panel">
+      <div class="panel-header" style="cursor:pointer" onclick="toggleSummaryPanel(event)" title="Click to expand/collapse">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="summaryCollapseIcon" class="collapse-icon">▼</span>
+          <span class="panel-title">📊 Distribution Summary</span>
+        </div>
+        <div onclick="event.stopPropagation()" style="width:100%">
+          <div class="fn-template-row">
+            <label>Filename<br><span style="font-size:10px">prefix</span></label>
+            <input type="text" id="fnPrefix" class="input-text" style="max-width:160px;min-width:100px" value="QueueDist" placeholder="prefix" oninput="updateFnPreview()">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">{AgentName}_{prefix}_{date}.xlsx</span>
+            <div class="fn-preview-pill">
+              <span class="fn-preview-text" id="fnPreview">AgentName_QueueDist_2025-06-02.xlsx</span>
+              <button class="fn-copy-btn" id="fnCopyBtn" onclick="copyFnPreview(this)">⎘ Copy</button>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, exportSummarySheet)" title="Export a summary showing claim counts per agent (not individual claims)">📋 Summary Sheet</button>
+          <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 2'))" style="border-color:rgba(168,85,247,0.4);color:#d8b4fe">⬇ Batch 2</button>
+          <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 3'))" style="border-color:rgba(34,211,238,0.4);color:#67e8f9">⬇ Batch 3</button>
+          <button class="btn btn-success btn-sm export-btn" onclick="wrapExport(this, exportAll)" title="Recommended: one ZIP with individual agent files + Team Overview file with Summary sheet">📦 ZIP Export ✓ Recommended</button>
+          <button class="btn btn-secondary btn-sm export-btn" onclick="confirmCombinedExport()" style="border-color:var(--amber);color:var(--amber)" title="Creates one shared file — all agent sheets visible to each other">⚠ Combined (shared)</button>
+        </div>
+      </div>
+      <div class="panel-body" id="summaryPanelBody" style="display:none">
+        <div id="export-progress">
+          <span id="ep-text">Generating files…</span>
+          <div class="ep-bar-wrap"><div class="ep-bar" id="ep-bar" style="width:0%"></div></div>
+          <span id="ep-pct" style="font-size:11px;min-width:36px;text-align:right">0%</span>
+        </div>
+        <div id="summaryTable"></div>
+        <div id="loadChartSection"></div>
+        <div class="divider"></div>
+        <div id="balanceSection"></div>
+        <div id="unassignedPanelSlot"></div>
+      </div>
+    </div>
+    <div id="loadChartProminent" class="load-chart-prominent hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;font-weight:700">Load Distribution</div>
+        <div style="display:flex;gap:14px;font-family:var(--mono);font-size:10px;">
+          <span style="color:var(--accent)">■ Normal</span>
+          <span style="color:var(--amber)">■ Near cap</span>
+          <span style="color:var(--red)">■ At/over cap</span>
+        </div>
+      </div>
+      <div class="load-bars" id="prominentLoadBars"></div>
+    </div>
+    <div class="panel" id="cardsPanel">
+      <div class="panel-header" style="cursor:pointer" onclick="toggleCardsPanel()" title="Click to expand/collapse">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="cardsCollapseIcon" class="collapse-icon">▼</span>
+          <span class="panel-title">🗂 Per-Agent Preview</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Purple border = Related Claims Group</span>
+        </div>
+      </div>
+      <div class="panel-body" id="cardsPanelBody" style="display:none"><div class="dist-preview" id="distPreview"></div></div>
+    </div>
+    <div class="toolbar" style="justify-content:space-between">
+      <button class="btn btn-secondary" onclick="goStep2()">← Reconfigure</button>
+      <button class="btn btn-secondary export-btn" onclick="confirmCombinedExport()" style="border-color:var(--amber);color:var(--amber)">⚠ Combined (shared)</button>
+    </div>
+  </div>
+</div>
+<div class="sticky-export-bar" id="stickyExportBar">
+  <span class="seb-label">EXPORT</span>
+  <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, exportSummarySheet)" title="Export a summary sheet showing claim counts per agent">📋 Summary</button>
+  <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 2'))" style="border-color:rgba(168,85,247,0.4);color:#d8b4fe">⬇ B2</button>
+  <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 3'))" style="border-color:rgba(34,211,238,0.4);color:#67e8f9">⬇ B3</button>
+  <button class="btn btn-success btn-sm export-btn" onclick="wrapExport(this, exportAll)" title="One ZIP: agent files + Team Overview w/ Summary">📦 ZIP</button>
+  <button class="btn btn-secondary btn-sm export-btn" onclick="confirmCombinedExport()" style="border-color:var(--amber);color:var(--amber)" title="Creates one shared file — agents can see each other's claims">⚠ Combined</button>
+  <button class="btn btn-secondary btn-sm" onclick="goStep2()" style="margin-left:8px">← Reconfig</button>
+  <button class="btn btn-primary btn-sm" onclick="rerunDistribution()" style="margin-left:4px">🔄 Re-run</button>
+</div>
+
+<div id="runModal">
+  <div class="run-modal-box">
+    <div class="run-modal-title">Ready to distribute?</div>
+    <div class="run-modal-sub" id="runModalSub">Review the summary before committing. You can always re-run after.</div>
+    <div class="run-modal-stats" id="runModalStats"></div>
+    <div class="run-modal-actions">
+      <button class="btn btn-secondary" onclick="closeRunModal()">← Go back</button>
+      <button class="btn btn-primary" onclick="confirmRunDistribution()">✓ Run Distribution</button>
+    </div>
+  </div>
+</div>
+
+<div id="distSpinner"><div class="spinner-ring"></div><div class="spinner-label">DISTRIBUTING…</div></div>
+<div id="toast"></div>
+
+<script>
+// ── Collapse helpers ──────────────────────────────────────────────────────────
+function toggleRosterPanel(e) {
+  toggleCollapsible('rosterPanelBody', 'rosterCollapseIcon', 'roster');
+}
+function toggleRulesPanel() {
+  toggleCollapsible('rulesPanelBody', 'rulesCollapseIcon', 'rules');
+  const hint = document.getElementById('rulesCollapseIcon')?.parentElement?.querySelector('span:last-child');
+  const collapsed = document.getElementById('rulesPanelBody')?.classList.contains('collapsed');
+  if (hint) hint.textContent = collapsed ? '(click to expand)' : '(click to collapse)';
+}
+function toggleSummaryPanel(e) {
+  toggleCollapsible('summaryPanelBody', 'summaryCollapseIcon', 'summary');
+}
+function toggleCardsPanel() {
+  toggleCollapsible('cardsPanelBody', 'cardsCollapseIcon', 'cards');
+}
+
+// ── ABSENT-AGENTS QUICK PANEL ────────────────────────────────────────────────
+function renderAbsentPanel() {
+  const grid = document.getElementById('absentPillGrid');
+  if (!grid) return;
+  grid.innerHTML = state.agents.map((ag, i) => {
+    const isAbsent = !ag.included;
+    return `<div class="absent-pill${isAbsent?' absent':''}" id="apill-${i}" onclick="toggleAbsentPill(${i})" title="${isAbsent?'Click to mark present':'Click to mark absent'}">
+      <span class="ap-dot"></span>
+      <span class="ap-x">✕</span>
+      <span>${esc(ag.name)}</span>
+    </div>`;
+  }).join('');
+  updateAbsentBadge();
+}
+
+function toggleAbsentPill(i) {
+  const ag = state.agents[i];
+  if (!ag) return;
+  ag.included = !ag.included;
+  const pill = document.getElementById(`apill-${i}`);
+  if (pill) {
+    pill.classList.toggle('absent', !ag.included);
+    pill.title = ag.included ? 'Click to mark absent' : 'Click to mark present';
+  }
+  const row = document.getElementById(`rrow-${i}`);
+  if (row) {
+    row.className = ag.included ? '' : 'row-excluded';
+    const nameStatus = row.querySelector('td:nth-child(2) div:last-child');
+    if (nameStatus) nameStatus.textContent = ag.included ? 'ACTIVE' : 'EXCLUDED';
+    const toggleBtn = row.querySelector('.rt-toggle');
+    if (toggleBtn) toggleBtn.textContent = ag.included ? '✕ Exclude' : '✓ Include';
+  }
+  updateAbsentBadge();
+  autoSaveSettingsIfExists();
+  markDirty();
+}
+
+function updateAbsentBadge() {
+  const absentList = state.agents.filter(a => !a.included);
+  const badge = document.getElementById('absentCountBadge');
+  const clearBtn = document.getElementById('absentClearBtn');
+  const countEl = document.getElementById('agentCount');
+  if (badge) {
+    if (absentList.length > 0) {
+      badge.textContent = `${absentList.length} absent`;
+      badge.classList.add('visible');
+    } else {
+      badge.classList.remove('visible');
+    }
+  }
+  if (clearBtn) clearBtn.style.display = absentList.length > 0 ? 'inline-flex' : 'none';
+  const activeCount = state.agents.filter(a=>a.included).length;
+  if (countEl) countEl.textContent = state.agents.length ? `${activeCount}/${state.agents.length} active` : '';
+}
+
+function clearAllAbsent() {
+  state.agents.forEach((ag, i) => {
+    if (!ag.included) {
+      ag.included = true;
+      const pill = document.getElementById(`apill-${i}`);
+      if (pill) { pill.classList.remove('absent'); pill.title = 'Click to mark absent'; }
+      const row = document.getElementById(`rrow-${i}`);
+      if (row) {
+        row.className = '';
+        const nameStatus = row.querySelector('td:nth-child(2) div:last-child');
+        if (nameStatus) nameStatus.textContent = 'ACTIVE';
+        const toggleBtn = row.querySelector('.rt-toggle');
+        if (toggleBtn) toggleBtn.textContent = '✕ Exclude';
+      }
+    }
+  });
+  updateAbsentBadge();
+  autoSaveSettingsIfExists();
+  markDirty();
+  toast('All agents marked present', 'success');
+}
+
+// ── Batch Status "Check All" helpers ─────────────────────────────────────────
+function toggleAllBatchStatuses(containerId, checked) {
+  document.querySelectorAll(`#${containerId} input[type=checkbox]`).forEach(cb => {
+    cb.checked = checked;
+    cb.closest('label').classList.toggle('checked', checked);
+  });
+  autoSaveSettingsIfExists();
+}
+function syncBatchAllCheckbox(containerId, masterCheckId) {
+  const all = [...document.querySelectorAll(`#${containerId} input[type=checkbox]`)];
+  document.getElementById(masterCheckId).checked = all.every(cb => cb.checked);
+}
+
+const state = { 
+  files:[], 
+  allRows:[], 
+  agents:[], 
+  distribution:{}, 
+  groups:{}, 
+  globalCap: null, 
+  relatedPct: 100,
+  unassignedReasons: {}, // Master registry of exactly why each ClaimID didn't get distributed
+  priorRelatedCounts: {}  // AgentName -> relatedClaimCount from last imported queue output
+};
+let toastT;
+const COLORS = ['#3b82f6','#22d3ee','#10b981','#a855f7','#f59e0b','#ef4444','#ec4899','#14b8a6','#f97316','#6366f1'];
+
+const ROSTER_KEY = 'queuedist_roster_v2';
+const PROV_KEY = 'queuedist_provs_v2';
+
+// ── XSS PREVENTION HELPER ─────────────────────────────────────────────────────
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/[&<>"']/g, function(m) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+  });
+}
+
+// ── MASTER PROVIDER LIST ──────────────────────────────────────────────────────
+const PROVIDER_LIST = [
+  'EMERUS', 'HENRY COUNTY', 'LAKE REGIONAL HEALTH SYSTEMS MO (HB & HB AR)',
+  'LAKE REGIONAL HEALTH SYSTEMS MO (PB & PB AR)', 'LINCOLN COUNTY REGIONAL HEALTH SYSTEMS MO (HB & HB AR)',
+  'LINCOLN COUNTY REGIONAL HEALTH SYSTEMS MO (PB & PB AR)', 'LMH HEALTH KS HB', 'LMH HEALTH KS PB',
+  'MCLAREN (HB & HB AR)', 'MCLAREN (PB & PB AR)', 'MDMC HB', 'MDMC PB', 'OPTIM HEALTH (HB & HB AR)',
+  'OPTIM HEALTH (PB & PB AR)', 'OPTIM PREMIER (HB & HB AR)', 'OPTIM PREMIER (PB & PB AR)', 'OTTO',
+  'SOUTHCOAST Health MA (HB & HB AR)', 'SOUTHCOAST Health MA and RI (PB & PB AR)', 'TIDELANDS HB',
+  'TIDELANDS PB', 'UHKC HB', 'UHKC PB', 'UNION GENERAL', 'VIS', 'VUMC HB', 'VUMC PB', 'WAKEMED HB', 'WAKEMED PB'
+].sort();
+
+// ── BATCH DEFINITIONS ─────────────────────────────────────────────────────────
+const BATCH_DEFS = {
+  'Batch 2': [
+    'David Tejada', 'Micha Kit Gallego', 'Elmo Ador Jr', 'Clark Panaguiton',
+    'Kate Perez', 'Jherana Magno', 'Sel Dolor', 'Georlyn Caguan',
+    'Raynier Hortillosa', 'Prudelyn Labro', 'Danica De La Peña',
+    'Ryden Cardinal', 'Jhon Herrera', 'Lorie Gutierrez', 'Lara Depiño'
+  ],
+  'Batch 3': [
+    'Regina Corvera', 'Mark Tolentino', 'Shane Ian Atad', 'Addy Palawan', 'Jonathan Dula'
+  ]
+};
+
+const DEFAULT_ROSTER = [
+  { name:'David Tejada', batch:'Batch 2' }, { name:'Micha Kit Gallego', batch:'Batch 2' },
+  { name:'Elmo Ador Jr', batch:'Batch 2' }, { name:'Clark Panaguiton', batch:'Batch 2' },
+  { name:'Kate Perez', batch:'Batch 2' }, { name:'Jherana Magno', batch:'Batch 2' },
+  { name:'Sel Dolor', batch:'Batch 2' }, { name:'Georlyn Caguan', batch:'Batch 2' },
+  { name:'Raynier Hortillosa', batch:'Batch 2' }, { name:'Prudelyn Labro', batch:'Batch 2' },
+  { name:'Danica De La Peña', batch:'Batch 2' }, { name:'Ryden Cardinal', batch:'Batch 2' },
+  { name:'Jhon Herrera', batch:'Batch 2' }, { name:'Lorie Gutierrez', batch:'Batch 2' },
+  { name:'Lara Depiño', batch:'Batch 2' }, { name:'Regina Corvera', batch:'Batch 3' },
+  { name:'Mark Tolentino', batch:'Batch 3' }, { name:'Shane Ian Atad', batch:'Batch 3' },
+  { name:'Addy Palawan', batch:'Batch 3' }, { name:'Jonathan Dula', batch:'Batch 3' }
+];
+
+const DEFAULT_PROV_ASSIGNMENTS = {
+  'David Tejada': [{ provider:'EMERUS', alphaStart:'A', alphaEnd:'C' }],
+  'Micha Kit Gallego': [{ provider:'EMERUS', alphaStart:'D', alphaEnd:'F' }],
+  'Elmo Ador Jr': [{ provider:'EMERUS', alphaStart:'G', alphaEnd:'I' }],
+  'Clark Panaguiton': [{ provider:'EMERUS', alphaStart:'J', alphaEnd:'L' }],
+  'Kate Perez': [{ provider:'EMERUS', alphaStart:'M', alphaEnd:'O' }],
+  'Jherana Magno': [ { provider:'HENRY COUNTY', alphaStart:null, alphaEnd:null }, { provider:'LAKE REGIONAL HEALTH SYSTEMS MO (HB & HB AR)', alphaStart:null, alphaEnd:null }, { provider:'LAKE REGIONAL HEALTH SYSTEMS MO (PB & PB AR)', alphaStart:null, alphaEnd:null }, { provider:'LINCOLN COUNTY REGIONAL HEALTH SYSTEMS MO (HB & HB AR)', alphaStart:null, alphaEnd:null } ],
+  'Sel Dolor': [ { provider:'LMH HEALTH KS HB', alphaStart:null, alphaEnd:null }, { provider:'LMH HEALTH KS PB', alphaStart:null, alphaEnd:null }, { provider:'OPTIM PREMIER (HB & HB AR)', alphaStart:null, alphaEnd:null }, { provider:'OPTIM HEALTH (HB & HB AR)', alphaStart:null, alphaEnd:null }, { provider:'OTTO', alphaStart:null, alphaEnd:null } ],
+  'Georlyn Caguan': [{ provider:'MCLAREN (HB & HB AR)', alphaStart:'A', alphaEnd:'I' }],
+  'Raynier Hortillosa': [ { provider:'MCLAREN (PB & PB AR)', alphaStart:null, alphaEnd:null }, { provider:'MDMC HB', alphaStart:null, alphaEnd:null }, { provider:'MDMC PB', alphaStart:null, alphaEnd:null }, { provider:'VIS', alphaStart:null, alphaEnd:null } ],
+  'Prudelyn Labro': [ { provider:'SOUTHCOAST Health MA (HB & HB AR)', alphaStart:'S', alphaEnd:'U' }, { provider:'UNION GENERAL', alphaStart:null, alphaEnd:null }, { provider:'WAKEMED HB', alphaStart:null, alphaEnd:null } ],
+  'Danica De La Peña': [ { provider:'SOUTHCOAST Health MA (HB & HB AR)', alphaStart:'V', alphaEnd:'X' }, { provider:'VUMC HB', alphaStart:'A', alphaEnd:'G' } ],
+  'Ryden Cardinal': [ { provider:'SOUTHCOAST Health MA (HB & HB AR)', alphaStart:'Y', alphaEnd:'Z' }, { provider:'VUMC HB', alphaStart:'H', alphaEnd:'N' } ],
+  'Jhon Herrera': [ { provider:'SOUTHCOAST Health MA and RI (PB & PB AR)', alphaStart:'U', alphaEnd:'W' }, { provider:'VUMC PB', alphaStart:'A', alphaEnd:'E' } ],
+  'Lorie Gutierrez': [ { provider:'SOUTHCOAST Health MA and RI (PB & PB AR)', alphaStart:'X', alphaEnd:'Z' }, { provider:'VUMC PB', alphaStart:'F', alphaEnd:'J' } ],
+  'Lara Depiño': [ { provider:'TIDELANDS HB', alphaStart:null, alphaEnd:null }, { provider:'TIDELANDS PB', alphaStart:null, alphaEnd:null }, { provider:'UHKC HB', alphaStart:'A', alphaEnd:'M' }, { provider:'UHKC PB', alphaStart:null, alphaEnd:null } ],
+  'Regina Corvera': [{ provider:'VUMC HB', alphaStart:'O', alphaEnd:'T' }],
+  'Mark Tolentino': [{ provider:'SOUTHCOAST Health MA (HB & HB AR)', alphaStart:'P', alphaEnd:'R' }],
+  'Shane Ian Atad': [{ provider:'SOUTHCOAST Health MA and RI (PB & PB AR)', alphaStart:'I', alphaEnd:'K' }],
+  'Addy Palawan': [{ provider:'SOUTHCOAST Health MA (HB & HB AR)', alphaStart:'J', alphaEnd:'L' }],
+  'Jonathan Dula': [{ provider:'EMERUS', alphaStart:'P', alphaEnd:'R' }],
+};
+
+let provAssignments = {};
+
+function loadProvAssignments() {
+  const saved = localStorage.getItem(PROV_KEY);
+  if (saved) {
+    try {
+      provAssignments = JSON.parse(saved);
+      return;
+    } catch(e) { console.warn('Failed parsing saved providers', e); }
+  }
+  provAssignments = JSON.parse(JSON.stringify(DEFAULT_PROV_ASSIGNMENTS));
+}
+
+function resetProvAssignments() {
+  if (!confirm('Reset all provider assignments to the defaults?')) return;
+  provAssignments = JSON.parse(JSON.stringify(DEFAULT_PROV_ASSIGNMENTS));
+  autoSaveSettingsIfExists();
+  renderRosterTable();
+  toast('Assignments reset to defaults', 'info');
+}
+
+function alphaLabel(a) {
+  if (!a.alphaStart && !a.alphaEnd) return '';
+  return ` · ${esc(a.alphaStart)||'?'}-${esc(a.alphaEnd)||'?'}`;
+}
+
+// ── ROSTER & RENDER ───────────────────────────────────────────────────────────
+function renderRosterTable() {
+  const tbody = document.getElementById('rosterBody');
+  if (!tbody) return;
+
+  const globalCap = state.globalCap;
+  const activeCount = state.agents.filter(a=>a.included).length;
+  const countEl = document.getElementById('agentCount');
+  if (countEl) countEl.textContent = state.agents.length ? `${activeCount}/${state.agents.length} active` : '';
+
+  const provOpts = `<option value="">— pick provider —</option>` +
+    PROVIDER_LIST.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('') +
+    `<option value="__custom__">✏ Type custom…</option>`;
+
+  tbody.innerHTML = state.agents.map((ag, i) => {
+    const safeName = esc(ag.name);
+    const initials = safeName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    const assignments = provAssignments[ag.name] || [];
+    const hasOverride = ag.cap != null;
+    const isOverride = hasOverride && globalCap != null && ag.cap !== globalCap;
+    const capCls = isOverride ? ' cap-override' : '';
+    const capVal = hasOverride ? esc(ag.cap) : '';
+    const capPlaceholder = globalCap != null ? String(globalCap) : '∞';
+    const b = ag.batch || '';
+    const batchSelCls = b === 'Batch 2' ? ' b2' : b === 'Batch 3' ? ' b3' : '';
+    const batchSel = `<select class="batch-sel${batchSelCls}" onchange="setAgentBatch(${i},this)" title="Assign batch">
+      <option value="" ${!b?'selected':''}>No Batch</option>
+      <option value="Batch 2" ${b==='Batch 2'?'selected':''}>Batch 2</option>
+      <option value="Batch 3" ${b==='Batch 3'?'selected':''}>Batch 3</option>
+    </select>`;
+
+    const r = ag.role || 'TM';
+    const roleCls = 'role-' + r.toLowerCase().replace(/\s+/g,'-');
+    const roleSel = `<select class="role-sel ${roleCls}" onchange="setAgentRole(${i},this)" title="Team member role">
+      <option value="AM" ${r==='AM'?'selected':''}>Asst. Manager</option>
+      <option value="POC" ${r==='POC'?'selected':''}>POC</option>
+      <option value="TM" ${r==='TM'?'selected':''}>Team Member</option>
+    </select>`;
+
+    const tags = assignments.map((a,ai) => {
+      const hasA = a.alphaStart || a.alphaEnd;
+      return `<span class="prov-tag${hasA?' has-alpha':''}">${esc(a.provider)}${alphaLabel(a)}<span class="ptd" onclick="removeProvEntry('${escQ(ag.name)}',${ai})" title="Remove">✕</span></span>`;
+    }).join('');
+
+    const addRow = `<div class="prov-add-row" id="parow-${i}">
+      <select class="prov-dd" id="pdd-${i}" onchange="onProvDdChange(${i})" title="Pick a provider">${provOpts}</select>
+      <input type="text" class="prov-dd" id="pcustom-${i}" placeholder="Custom provider name…" style="display:none;max-width:200px" title="Type custom provider">
+      <input type="text" class="alpha-inp" id="pas-${i}" placeholder="A" maxlength="1" title="Alpha start (blank = no split)">
+      <span class="alpha-sep">–</span>
+      <input type="text" class="alpha-inp" id="pae-${i}" placeholder="Z" maxlength="1" title="Alpha end">
+      <button class="btn btn-secondary btn-sm" onclick="addProvEntry('${escQ(ag.name)}',${i})" style="white-space:nowrap">+ Add</button>
+    </div>`;
+
+    const rowCls = ag.included ? '' : ' row-excluded';
+    const toggleLbl = ag.included ? '✕ Exclude' : '✓ Include';
+
+    return `<tr class="${rowCls}" id="rrow-${i}">
+      <td><div class="rt-avatar" style="background:${ag.color}20;color:${ag.color};box-shadow:0 0 0 2px ${ag.color}30">${initials}</div></td>
+      <td>
+        <div class="rt-name" style="color:${ag.color}">${safeName}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">${ag.included?'ACTIVE':'EXCLUDED'}</div>
+      </td>
+      <td>${roleSel}</td>
+      <td>${batchSel}</td>
+      <td>
+        <input type="number" class="cap-inp${capCls}" min="1" placeholder="${capPlaceholder}" value="${capVal}"
+          oninput="setAgentCap(${i},this.value)"
+          title="${isOverride?'Individual override — differs from global cap':hasOverride?'Individual cap (overrides global)':'Leave blank = global cap'}">
+        ${isOverride ? `<div style="font-family:var(--mono);font-size:8px;color:var(--purple);margin-top:2px">OVERRIDE</div>` : globalCap!=null&&!hasOverride ? `<div style="font-family:var(--mono);font-size:8px;color:var(--accent2);margin-top:2px">GLOBAL</div>` : ''}
+      </td>
+      <td>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;min-height:24px">
+          ${tags || `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">None assigned</span>`}
+        </div>
+        ${addRow}
+      </td>
+      <td>
+        <div style="display:flex;gap:5px;align-items:center">
+          <button class="rt-toggle" onclick="toggleAgent(${i})">${toggleLbl}</button>
+          <button class="rt-del" onclick="removeAgent(${i})" title="Remove agent">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function onProvDdChange(idx) {
+  const dd = document.getElementById(`pdd-${idx}`);
+  const custom = document.getElementById(`pcustom-${idx}`);
+  if (!dd || !custom) return;
+  if (dd.value === '__custom__') { custom.style.display = ''; custom.focus(); } 
+  else { custom.style.display = 'none'; }
+}
+
+function escQ(s) { return s.replace(/'/g,"\\'"); }
+
+function addProvEntry(agentName, idx) {
+  const dd = document.getElementById(`pdd-${idx}`);
+  const custom = document.getElementById(`pcustom-${idx}`);
+  let prov = '';
+  if (dd && dd.value === '__custom__') prov = (custom?.value||'').trim();
+  else prov = (dd?.value||'').trim();
+  
+  if (!prov || prov === '__custom__') { toast('Pick or type a provider first', 'error'); return; }
+  const aS = (document.getElementById(`pas-${idx}`)?.value||'').trim().toUpperCase();
+  const aE = (document.getElementById(`pae-${idx}`)?.value||'').trim().toUpperCase();
+  
+  if (!provAssignments[agentName]) provAssignments[agentName] = [];
+  provAssignments[agentName].push({ provider: prov, alphaStart: aS||null, alphaEnd: aE||null });
+  markDirty(); renderRosterTable();
+  autoSaveSettingsIfExists();
+}
+
+function removeProvEntry(agentName, ai) {
+  if (!provAssignments[agentName]) return;
+  provAssignments[agentName].splice(ai, 1);
+  markDirty(); renderRosterTable();
+  autoSaveSettingsIfExists();
+}
+
+// ── PERSISTENCE ───────────────────────────────────────────────────────────────
+function saveSettings() {
+  const data = state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' }));
+  const payload = { 
+    agents: data, 
+    globalCap: state.globalCap ?? null,
+    statusCol: document.getElementById('statusCol')?.value || 'Status',
+    batch2Statuses: Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value),
+    batch3Statuses: Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value)
+  };
+  localStorage.setItem(ROSTER_KEY, JSON.stringify(payload));
+  localStorage.setItem(PROV_KEY, JSON.stringify(provAssignments));
+  updateRosterBadge(true);
+  markClean();
+  toast(`Roster and providers saved`, 'success');
+}
+
+function autoSaveSettingsIfExists() {
+  if (localStorage.getItem(ROSTER_KEY)) {
+    const data = state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' }));
+    const payload = {
+      agents: data, 
+      globalCap: state.globalCap ?? null,
+      statusCol: document.getElementById('statusCol')?.value || 'Status',
+      batch2Statuses: Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value),
+      batch3Statuses: Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value)
+    };
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(payload));
+    localStorage.setItem(PROV_KEY, JSON.stringify(provAssignments));
+  }
+}
+
+function loadSettings() {
+  loadProvAssignments();
+  try {
+    const raw = localStorage.getItem(ROSTER_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved) {
+        const agentList = Array.isArray(saved) ? saved : (saved.agents || []);
+        const globalCap = Array.isArray(saved) ? null : (saved.globalCap ?? null);
+        
+        if (saved.statusCol !== undefined) document.getElementById('statusCol').value = saved.statusCol;
+        if (saved.batch2Statuses !== undefined && Array.isArray(saved.batch2Statuses)) {
+          document.querySelectorAll('#batch2Checkboxes input').forEach(cb => {
+            cb.checked = saved.batch2Statuses.includes(cb.value);
+          });
+        }
+        if (saved.batch3Statuses !== undefined && Array.isArray(saved.batch3Statuses)) {
+          document.querySelectorAll('#batch3Checkboxes input').forEach(cb => {
+            cb.checked = saved.batch3Statuses.includes(cb.value);
+          });
+        }
+
+        if (agentList.length) {
+          state.agents = agentList.map((a,i) => ({
+            name: a.name, color: a.color || COLORS[i % COLORS.length], included: a.included !== false, cap: a.cap ?? null, batch: a.batch || '', role: a.role || 'TM'
+          }));
+          if (globalCap != null) {
+            state.globalCap = globalCap;
+            const inp = document.getElementById('globalCapInput');
+            if (inp) inp.value = globalCap;
+          }
+          updateRosterBadge(true);
+          return;
+        }
+      }
+    }
+  } catch(e) {}
+  // Default Roster
+  if (state.agents.length === 0) {
+    state.agents = DEFAULT_ROSTER.map((a,i) => ({
+      name: a.name, color: COLORS[i % COLORS.length], included: true, cap: null, batch: a.batch || '', role: a.role || 'TM'
+    }));
+  }
+}
+
+function clearSettings() {
+  if (!confirm('Remove saved settings? Current session list stays, but it will revert to defaults on reload.')) return;
+  localStorage.removeItem(ROSTER_KEY);
+  localStorage.removeItem(PROV_KEY);
+  updateRosterBadge(false);
+  toast('Saved settings cleared', 'info');
+}
+
+function updateRosterBadge(hasSaved) {
+  const badge = document.getElementById('savedRoster-badge');
+  const clearBtn = document.getElementById('btnClearRoster');
+  if (badge) badge.style.display = hasSaved ? 'inline-flex' : 'none';
+  if (clearBtn) clearBtn.style.display = hasSaved ? 'inline-flex' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  updateRosterBadge(!!localStorage.getItem(ROSTER_KEY));
+  renderPresetChips();
+  updateFnPreview();
+  initCollapseStates();
+  initStepNavigation();
+});
+
+// ── FILE UPLOAD ───────────────────────────────────────────────────────────────
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+// ── PRIOR QUEUE IMPORT ────────────────────────────────────────────────────────
+const priorUploadZone = document.getElementById('priorUploadZone');
+const priorFileInput = document.getElementById('priorFileInput');
+
+priorUploadZone.addEventListener('dragover', e => { e.preventDefault(); priorUploadZone.classList.add('dragover'); });
+priorUploadZone.addEventListener('dragleave', () => priorUploadZone.classList.remove('dragover'));
+priorUploadZone.addEventListener('drop', e => { e.preventDefault(); priorUploadZone.classList.remove('dragover'); handlePriorFiles(e.dataTransfer.files); });
+priorFileInput.addEventListener('change', e => handlePriorFiles(e.target.files));
+
+function extractAgentNameFromFilename(filename) {
+  // Expected format: AgentName_Prefix_YYYY-MM-DD.xlsx
+  // Agent name is everything before the first underscore-separated date segment
+  // Strip extension
+  const base = filename.replace(/\.[^.]+$/, '');
+  // Split on underscores, drop trailing date segment (matches YYYY-MM-DD or MM-DD-YYYY etc)
+  const parts = base.split('_');
+  const datePat = /^\d{2,4}[-]\d{2}[-]\d{2,4}$/;
+  // Find where date starts and strip from there, also strip known prefix tokens
+  const knownSuffixes = new Set(['QueueDist', 'AllAgents']);
+  const agentParts = [];
+  for (const p of parts) {
+    if (datePat.test(p)) break;
+    if (knownSuffixes.has(p)) break;
+    agentParts.push(p);
+  }
+  return agentParts.join(' ').trim() || base;
+}
+
+function handlePriorFiles(files) {
+  if (!files || !files.length) return;
+  const validFiles = Array.from(files).filter(f => ['xlsx','xls'].includes(f.name.split('.').pop().toLowerCase()));
+  if (!validFiles.length) { toast('No valid .xlsx files found', 'error'); return; }
+
+  let processed = 0;
+  const counts = Object.assign({}, state.priorRelatedCounts || {});
+  const metaHints = []; // collect filter_meta from ClaimOS exports
+
+  validFiles.forEach(file => {
+    const agentName = extractAgentNameFromFilename(file.name);
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+
+        // ── Read _filter_meta sheet if present (ClaimOS v230+ export) ───────
+        if (wb.SheetNames.includes('_filter_meta')) {
+          try {
+            const metaWs  = wb.Sheets['_filter_meta'];
+            const metaRows = XLSX.utils.sheet_to_json(metaWs, { defval: '', header: ['k','v'] });
+            const meta = {};
+            metaRows.forEach(r => { if(r.k) meta[r.k] = String(r.v||''); });
+            // Auto-populate review date filter if blank and meta has one
+            if (meta.review_date_filter) {
+              const rdEl = document.getElementById('reviewDateFilter');
+              if (rdEl && !rdEl.value) {
+                rdEl.value = meta.review_date_filter;
+                metaHints.push(`Review date auto-set to ${meta.review_date_filter} (from ClaimOS export)`);
+              }
+            }
+            // Surface agent / status filters as informational hints
+            if (meta.agent_filter)  metaHints.push(`Agent filter in source: "${meta.agent_filter}"`);
+            if (meta.status_filter) metaHints.push(`Status filter in source: "${meta.status_filter}"`);
+            if (meta.wf_filter)     metaHints.push(`Workflow filter in source: "${meta.wf_filter}"`);
+            if (meta.export_tool)   metaHints.push(`Exported by: ${meta.export_tool} on ${meta.export_date||'unknown date'}`);
+          } catch(metaErr) { /* non-fatal */ }
+        }
+
+        // For per-agent files, read ALL non-summary / non-meta sheets
+        const skipSheets = new Set(['📊 Summary', 'Unassigned', 'Summary', '_filter_meta']);
+        let relatedCount = 0;
+        wb.SheetNames.forEach(sheetName => {
+          if (skipSheets.has(sheetName)) return;
+          const ws = wb.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          relatedCount += rows.filter(r => {
+            const rcg = String(r['Related Claim Group'] || r['RCG'] || r['Related Group'] || '').trim();
+            return rcg !== '';
+          }).length;
+        });
+        counts[agentName] = (counts[agentName] || 0) + relatedCount;
+        state.priorRelatedCounts = counts;
+        processed++;
+        renderPriorStatus(`${processed} of ${validFiles.length} file(s) loaded`, counts);
+        if (processed === validFiles.length) {
+          toast(`${processed} prior file(s) loaded — equity offsets ready`, 'success');
+          // Surface any ClaimOS filter metadata hints to the user
+          if (metaHints.length) {
+            setTimeout(() => {
+              const hintEl = document.getElementById('priorMetaHints');
+              if (hintEl) {
+                hintEl.innerHTML = metaHints.map(h =>
+                  `<div style="display:flex;align-items:flex-start;gap:6px;padding:3px 0">
+                    <span style="color:var(--accent);flex-shrink:0">ℹ</span>
+                    <span>${h}</span>
+                  </div>`
+                ).join('');
+                hintEl.style.display = '';
+              }
+            }, 200);
+          }
+        }
+      } catch(err) {
+        toast(`Failed to read ${file.name}: ` + err.message, 'error');
+      }
+    };
+    reader.readAsBinaryString(file);
+  });
+}
+
+function clearPriorQueue() {
+  state.priorRelatedCounts = {};
+  document.getElementById('priorStatus').innerHTML = '';
+  const hintEl = document.getElementById('priorMetaHints');
+  if (hintEl) { hintEl.innerHTML = ''; hintEl.style.display = 'none'; }
+  priorFileInput.value = '';
+  toast('Prior queue data cleared', 'info');
+}
+
+function renderPriorStatus(fileName, counts) {
+  const statusEl = document.getElementById('priorStatus');
+  if (!statusEl) return;
+  const total = Object.values(counts).reduce((s,v) => s+v, 0);
+  const chips = Object.entries(counts)
+    .sort((a,b) => b[1]-a[1])
+    .map(([name,cnt]) => `<span class="prior-agent-chip">🔗 ${esc(name)}: ${cnt}</span>`)
+    .join('');
+  statusEl.innerHTML = `
+    <div style="width:100%;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <span style="color:var(--green);font-size:11px">✓ ${esc(fileName)} — <strong>reference only</strong>, ${total} prior related claims tallied (not added to queue)</span>
+      <button class="btn btn-secondary btn-sm" onclick="clearPriorQueue()" style="font-size:10px;padding:4px 10px">✕ Clear</button>
+    </div>
+    ${chips}
+  `;
+}
+
+function handleFiles(files) {
+  [...files].forEach(file => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['csv','xlsx','xls'].includes(ext)) { toast('Unsupported: ' + file.name, 'error'); return; }
+    if (state.files.find(f => f.name === file.name)) { toast('Already loaded: ' + file.name, 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      let rows;
+      try {
+        if (ext === 'csv') rows = parseCSV(e.target.result);
+        else {
+          const wb = XLSX.read(e.target.result, {type:'binary'});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+        }
+        rows = rows.map(r => { const o={}; Object.keys(r).forEach(k => o[k.trim()]=r[k]); return o; });
+        if (!rows[0] || !('ClaimID' in rows[0])) { toast('No ClaimID column in: ' + file.name, 'error'); return; }
+        state.files.push({ name: file.name, count: rows.length, rows });
+        renderFileList(); mergeAllRows();
+      } catch(e) { toast('Error reading: ' + file.name, 'error'); }
+    };
+    if (ext === 'csv') reader.readAsText(file); else reader.readAsBinaryString(file);
+  });
+}
+
+function parseCSV(text) {
+  // Strip UTF-8 BOM if present (Excel-exported CSVs often include it)
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = parseCSVLine(lines[0]);
+  return lines.slice(1).map(l => {
+    const vals = parseCSVLine(l); const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i] ?? '');
+    return obj;
+  });
+}
+
+function parseCSVLine(line) {
+  const result=[]; let cur='', inQ=false;
+  for (let i=0; i<line.length; i++) {
+    const c=line[i];
+    if (c==='"') inQ=!inQ;
+    else if (c===',' && !inQ) { result.push(cur.trim()); cur=''; }
+    else cur+=c;
+  }
+  result.push(cur.trim()); return result;
+}
+
+function renderFileList() {
+  document.getElementById('fileList').innerHTML = state.files.map((f,i) => `
+    <div class="file-item">
+      <div class="file-dot"></div>
+      <div class="file-name" title="${esc(f.name)}">${esc(f.name)}</div>
+      <div class="file-count">${f.count.toLocaleString()} claims</div>
+      <div class="file-remove" onclick="removeFile(${i})">✕</div>
+    </div>`).join('');
+}
+
+function removeFile(idx) { state.files.splice(idx,1); renderFileList(); mergeAllRows(); }
+
+function mergeAllRows() {
+  const seen=new Set(); state.allRows=[];
+  state.files.forEach(f => f.rows.forEach(r => {
+    const id=String(r.ClaimID||'').trim();
+    if (id && !seen.has(id)) { seen.add(id); state.allRows.push(r); }
+  }));
+  const btn=document.getElementById('btnStep1Next');
+  const info=document.getElementById('step1-info');
+  btn.disabled = state.allRows.length===0;
+  info.textContent = state.allRows.length ? `${state.allRows.length.toLocaleString()} unique claims loaded` : '';
+}
+
+function goStep1() { show('panel-upload'); hide('panel-agents'); hide('panel-results'); setStep(1); updateStickyBar(); }
+function goStep2() {
+  updateStickyBar();
+  if (state._dirty) {
+    // auto-save if settings exist, otherwise just proceed
+    autoSaveSettingsIfExists();
+  }
+  show('panel-agents'); hide('panel-upload'); hide('panel-results'); setStep(2); renderRosterTable(); renderAbsentPanel();
+}
+function goStep3() {
+  // ── Pre-flight validation ─────────────────────────────────────────────────
+  const activeAgents = state.agents.filter(a => a.included);
+  if (!activeAgents.length) {
+    toast('⚠ No active agents — mark at least one agent as present.', 'error');
+    return;
+  }
+
+  const reviewDateColEl = document.getElementById('reviewDateCol');
+  const reviewDateColVal = (reviewDateColEl?.value || '').trim();
+  if (!reviewDateColVal) {
+    reviewDateColEl.focus();
+    reviewDateColEl.style.borderColor = 'var(--red)';
+    reviewDateColEl.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
+    setTimeout(() => { reviewDateColEl.style.borderColor = ''; reviewDateColEl.style.boxShadow = ''; }, 2500);
+    toast('⚠ Review Date Column cannot be blank.', 'error');
+    return;
+  }
+
+  const statusColEl = document.getElementById('statusCol');
+  const statusColVal = (statusColEl?.value || '').trim();
+  if (!statusColVal) {
+    statusColEl.focus();
+    statusColEl.style.borderColor = 'var(--red)';
+    statusColEl.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.15)';
+    setTimeout(() => { statusColEl.style.borderColor = ''; statusColEl.style.boxShadow = ''; }, 2500);
+    toast('⚠ Status Column cannot be blank.', 'error');
+    return;
+  }
+
+  // Ensure global cap has a value (restore 9999 if somehow cleared)
+  const capEl = document.getElementById('globalCapInput');
+  if (capEl && (capEl.value === '' || isNaN(parseInt(capEl.value, 10)) || parseInt(capEl.value, 10) < 1)) {
+    capEl.value = 9999;
+    applyGlobalCap('9999');
+  }
+
+  // ── Show run confirmation modal ───────────────────────────────────────────
+  showRunModal();
+}
+
+function showRunModal() {
+  const activeAgents = state.agents.filter(a => a.included);
+  const absentAgents = state.agents.filter(a => !a.included);
+  const globalCap = parseInt(document.getElementById('globalCapInput')?.value || '9999', 10);
+  const filterDate = document.getElementById('reviewDateFilter')?.value || '';
+  const modal = document.getElementById('runModal');
+  const statsEl = document.getElementById('runModalStats');
+  const subEl = document.getElementById('runModalSub');
+
+  subEl.textContent = `${activeAgents.length} agents active${absentAgents.length ? `, ${absentAgents.length} absent (${absentAgents.map(a=>a.name.split(' ')[0]).join(', ')})` : ''}. Review the run parameters before committing.`;
+
+  statsEl.innerHTML = `
+    <div class="run-modal-stat"><div class="run-modal-stat-label">Claims Loaded</div><div class="run-modal-stat-val" style="color:var(--accent)">${state.allRows.length.toLocaleString()}</div></div>
+    <div class="run-modal-stat"><div class="run-modal-stat-label">Active Agents</div><div class="run-modal-stat-val" style="color:var(--green)">${activeAgents.length}</div></div>
+    <div class="run-modal-stat"><div class="run-modal-stat-label">Global Cap</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:16px">${globalCap >= 9999 ? '∞ No limit' : globalCap}</div></div>
+    <div class="run-modal-stat"><div class="run-modal-stat-label">Review Filter</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:14px">${filterDate || 'None'}</div></div>
+  `;
+  if (modal) modal.classList.add('active');
+}
+
+function closeRunModal() {
+  const modal = document.getElementById('runModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function confirmRunDistribution() {
+  closeRunModal();
+  autoSaveSettingsIfExists();
+  markClean();
+  show('panel-results'); hide('panel-agents'); hide('panel-upload'); setStep(3); updateStickyBar(); checkDuplicatesAcrossFiles(); showSpinner(); setTimeout(() => { runDistribution(); hideSpinner(); }, 60);
+}
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step'+i);
+    el.className = 'step' + (i===n ? ' active' : i<n ? ' done' : '');
+  });
+  // Update step 1 meta
+  if (n > 1 && state.allRows.length) {
+    const m = document.getElementById('step1-meta');
+    if (m) m.textContent = `✓ ${state.allRows.length.toLocaleString()} claims loaded`;
+  }
+  // Update step 2 meta
+  if (n > 2) {
+    const m = document.getElementById('step2-meta');
+    const active = state.agents.filter(a=>a.included).length;
+    if (m) m.textContent = `✓ ${active} agents active`;
+  }
+}
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ── DIRTY STATE ───────────────────────────────────────────────────────────────
+function markDirty() {
+  state._dirty = true;
+  const chip = document.getElementById('dirty-chip');
+  if (chip) chip.classList.add('visible');
+}
+function markClean() {
+  state._dirty = false;
+  const chip = document.getElementById('dirty-chip');
+  if (chip) chip.classList.remove('visible');
+}
+
+// ── AGENT ACTIONS ─────────────────────────────────────────────────────────────
+function setAgentCap(idx, val) {
+  const n = parseInt(val, 10);
+  state.agents[idx].cap = (val === '' || isNaN(n) || n < 1) ? null : n;
+  markDirty(); renderRosterTable(); autoSaveSettingsIfExists();
+}
+function setAgentBatch(idx, sel) {
+  state.agents[idx].batch = sel.value || '';
+  const name = state.agents[idx].name;
+  Object.keys(BATCH_DEFS).forEach(b => { BATCH_DEFS[b] = BATCH_DEFS[b].filter(n => n !== name); });
+  if (sel.value) { if (!BATCH_DEFS[sel.value]) BATCH_DEFS[sel.value] = []; BATCH_DEFS[sel.value].push(name); }
+  sel.className = 'batch-sel' + (sel.value === 'Batch 2' ? ' b2' : sel.value === 'Batch 3' ? ' b3' : '');
+  markDirty(); autoSaveSettingsIfExists();
+}
+function setAgentRole(idx, sel) {
+  state.agents[idx].role = sel.value || 'TM';
+  sel.className = 'role-sel role-' + (sel.value || 'TM').toLowerCase().replace(/\s+/g,'-');
+  markDirty(); autoSaveSettingsIfExists();
+}
+function toggleAgent(idx) {
+  state.agents[idx].included = !state.agents[idx].included;
+  markDirty(); renderRosterTable(); autoSaveSettingsIfExists();
+  // sync absent panel pill
+  const pill = document.getElementById(`apill-${idx}`);
+  if (pill) {
+    const ag = state.agents[idx];
+    pill.classList.toggle('absent', !ag.included);
+    pill.title = ag.included ? 'Click to mark absent' : 'Click to mark present';
+  }
+  updateAbsentBadge();
+}
+function removeAgent(idx) { state.agents.splice(idx, 1); markDirty(); renderRosterTable(); autoSaveSettingsIfExists(); }
+function applyGlobalCap(val) {
+  const n = parseInt(val, 10);
+  if (val === '' || isNaN(n) || n < 1) {
+    const inp = document.getElementById('globalCapInput');
+    if (inp) inp.value = 9999;
+    state.globalCap = 9999;
+  } else {
+    state.globalCap = n;
+  }
+  markDirty(); renderRosterTable(); autoSaveSettingsIfExists();
+}
+function updateRelPct(val) {
+  const pct = parseInt(val, 10);
+  state.relatedPct = pct;
+  const badge = document.getElementById('relPctBadge');
+  if (badge) badge.textContent = pct + '%';
+  const slider = document.getElementById('relPctSlider');
+  if (slider) {
+    const fill = ((pct - 30) / 70) * 100;
+    slider.style.background = `linear-gradient(to right, var(--purple) ${fill}%, var(--border) ${fill}%)`;
+  }
+}
+function addAgent() {
+  const inp = document.getElementById('newAgentInput');
+  const batchSel = document.getElementById('newAgentBatch');
+  const name = inp.value.trim();
+  if (!name) return;
+  if (name.toUpperCase().includes('MVA BILINGUAL')) { toast('MVA Bilingual Team is excluded by policy','error'); return; }
+  if (state.agents.find(a=>a.name.toLowerCase()===name.toLowerCase())) { toast('Already exists','error'); return; }
+  const batch = batchSel?.value || '';
+  state.agents.push({ name, color: COLORS[state.agents.length%COLORS.length], included: true, cap: null, batch, role: 'TM' });
+  if (batch && BATCH_DEFS[batch] && !BATCH_DEFS[batch].includes(name)) BATCH_DEFS[batch].push(name);
+  inp.value = '';
+  if (batchSel) batchSel.value = '';
+  markDirty(); renderRosterTable(); autoSaveSettingsIfExists();
+}
+
+// ── DISTRIBUTION LOGIC ────────────────────────────────────────────────────────
+function getPatientKey(row) {
+  const method = document.getElementById('relatedKey')?.value || 'ssn_dob';
+  const ssn = String(row['Last 4 SSN']||'').trim();
+  const dob = String(row['Patient DOB']||'').trim();
+  const ln = String(row['Patient LN']||'').trim().toUpperCase();
+  const acct = String(row['Patient Acct']||'').trim();
+  switch(method) {
+    case 'ssn_dob':  return (ssn&&dob)?`${ssn}__${dob}`:null;
+    case 'ssn_name': return (ssn&&ln)?`${ssn}__${ln}`:null;
+    case 'acct':     return acct?acct:null;
+    case 'name_dob': return (ln&&dob)?`${ln}__${dob}`:null;
+    default: return null;
+  }
+}
+
+function setReviewDateToday() {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+  document.getElementById('reviewDateFilter').value = `${y}-${m}-${dd}`;
+}
+
+function getMatchType(agentName, row) {
+  const assignments = provAssignments[agentName];
+  if (!assignments || !assignments.length) return 'none';
+  const payer = String(row['Payer Name'] || row['Payer'] || row['Provider'] || '').toUpperCase();
+  const claimProg = String(row['Claim Program'] || '').toUpperCase();
+  const facility = String(row['Facility Name'] || '').toUpperCase();
+  const searchStr = [payer, claimProg, facility].join(' || ');
+  const ln = String(row['Patient LN'] || '').trim().toUpperCase();
+  const initial = ln ? ln[0] : null;
+
+  let provMatch = false;
+  for (const a of assignments) {
+    const provUp = a.provider.toUpperCase();
+    const firstWord = provUp.split(' ')[0];
+    const isMatch = searchStr.includes(provUp) || payer.includes(firstWord) || claimProg.includes(firstWord) || facility.includes(firstWord);
+    if (!isMatch) continue;
+    if (!a.alphaStart && !a.alphaEnd) { provMatch = true; continue; }
+    if (initial && a.alphaStart && a.alphaEnd) {
+      if (initial >= a.alphaStart && initial <= a.alphaEnd) return 'exact';
+    }
+    provMatch = true;
+  }
+  return provMatch ? 'provider' : 'none';
+}
+
+// MATCH_TOLERANCE: how many claims above the lightest projected total a
+// provider-matched agent is still allowed to receive. Kept small so provider
+// preference never badly unbalances the queue.
+const MATCH_TOLERANCE = 2;
+
+function smartAssign(agentObjs, buckets, row, size, statusRules, statusCol, groupPassesStatusFn) {
+  // Use *projected* total (current + incoming size) as the fairness metric so
+  // that a large group already assigned to an agent is visible to the next
+  // assignment decision — preventing the "light bucket, heavy group" skew.
+  // groupPassesStatusFn (optional): pre-computed per-group status check for
+  // multi-status groups. When provided, overrides the single-row status check.
+  let lightest = null, lightestProjected = Infinity;
+  let skippedForStatus = 0;
+  let skippedForCap = 0;
+
+  const claimStatus = String(row[statusCol] || '').toUpperCase();
+
+  agentObjs.forEach(a => {
+    // 1. Status Filter Check
+    // If a group-level status checker is provided (for related groups with mixed
+    // statuses), use it. Otherwise fall back to single-row status check.
+    if (a.batch && statusRules[a.batch] && statusRules[a.batch].length > 0) {
+      const passes = groupPassesStatusFn
+        ? groupPassesStatusFn(a.batch)
+        : statusRules[a.batch].includes(claimStatus);
+      if (!passes) {
+        skippedForStatus++;
+        return;
+      }
+    }
+
+    // 2. Cap Filter Check
+    const cap = a.cap != null ? a.cap : state.globalCap;
+    if (cap != null && buckets[a.name].length + size > cap) {
+      skippedForCap++;
+      return;
+    }
+
+    // Pick the agent whose *projected* total (after adding this group) is lowest.
+    const projected = buckets[a.name].length + size;
+    if (projected < lightestProjected) { lightestProjected = projected; lightest = a.name; }
+  });
+  
+  if (!lightest) {
+    if (skippedForStatus === agentObjs.length) return { error: true, reason: 'Filtered: Status mismatch for active batches' };
+    return { error: true, reason: 'Cap Overflow / Unassigned' };
+  }
+
+  // Provider-match pass: only consider agents whose projected total stays
+  // within MATCH_TOLERANCE of the lightest projected total, ensuring provider
+  // preference doesn't override fairness by more than a small margin.
+  let bestMatch = null, bestMatchType = 'none', bestMatchProjected = Infinity;
+  agentObjs.forEach(a => {
+    if (a.batch && statusRules[a.batch] && statusRules[a.batch].length > 0) {
+      const passes = groupPassesStatusFn
+        ? groupPassesStatusFn(a.batch)
+        : statusRules[a.batch].includes(claimStatus);
+      if (!passes) return;
+    }
+
+    const cap = a.cap != null ? a.cap : state.globalCap;
+    if (cap != null && buckets[a.name].length + size > cap) return;
+
+    const projected = buckets[a.name].length + size;
+    if (projected > lightestProjected + MATCH_TOLERANCE) return; // fairness gate
+
+    const mt = getMatchType(a.name, row);
+    if (mt === 'exact' && (bestMatchType !== 'exact' || projected < bestMatchProjected)) {
+      bestMatch = a.name; bestMatchType = 'exact'; bestMatchProjected = projected;
+    } else if (mt === 'provider' && bestMatchType !== 'exact' && (bestMatchType !== 'provider' || projected < bestMatchProjected)) {
+      bestMatch = a.name; bestMatchType = 'provider'; bestMatchProjected = projected;
+    }
+  });
+  
+  return { agent: bestMatch || lightest, matchType: bestMatch ? bestMatchType : 'none' };
+}
+
+function runDistribution() {
+  const activeAgents = state.agents.filter(a=>a.included).map(a=>a.name);
+  if (!activeAgents.length) { toast('No agents active!','error'); return; }
+
+  const filterDateVal = (document.getElementById('reviewDateFilter')?.value || '').trim();
+  const dateCol = (document.getElementById('reviewDateCol')?.value || 'Review Dt').trim();
+  const excludeSys = true; // Always exclude System/Enforcer accounts
+  const excludeBilingual = document.getElementById('excludeBilingual')?.value === 'yes';
+
+  // Parse Batch Status Rules
+  const statusCol = document.getElementById('statusCol')?.value || 'Status';
+  const statusRules = {
+    'Batch 2': Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value.toUpperCase()),
+    'Batch 3': Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value.toUpperCase())
+  };
+
+  // Reset central unassigned log
+  state.unassignedReasons = {};
+
+  let filteredOutDate = 0;
+  let filteredOutSys = 0;
+  let filteredOutBilingual = 0;
+  
+  let workingRows = state.allRows.filter(row => {
+    const assignee = String(row['Assigned To'] || row['Owner'] || '').toUpperCase();
+    
+    // 1. Separate System Account Exclusion Logic
+    if (excludeSys && (assignee.includes('SYSTEM') || assignee.includes('ENFORCER'))) {
+      filteredOutSys++;
+      state.unassignedReasons[row.ClaimID] = 'Filtered: System Account';
+      return false;
+    }
+    
+    // 2. Separate MVA Bilingual Team Exclusion Logic
+    if (excludeBilingual && assignee.includes('MVA BILINGUAL')) {
+      filteredOutBilingual++;
+      state.unassignedReasons[row.ClaimID] = 'Filtered: MVA Bilingual Team';
+      return false;
+    }
+    
+    // 3. Date Filter Logic
+    if (filterDateVal) {
+      const raw = row[dateCol];
+      if (raw) {
+        let d = typeof raw === 'number' ? new Date(Math.round((raw - 25569) * 86400 * 1000)) : new Date(raw);
+        const cutoff = new Date(filterDateVal + 'T23:59:59');
+        if (!isNaN(d) && d > cutoff) {
+          filteredOutDate++;
+          state.unassignedReasons[row.ClaimID] = 'Filtered: Future Review Date';
+          return false;
+        }
+      }
+    }
+    return true;
+  });
+
+  state.filteredOutDate = filteredOutDate;
+  state.filteredOutSys = filteredOutSys;
+  state.filteredOutBilingual = filteredOutBilingual;
+  state.dateColUsed = filterDateVal ? dateCol : null;
+
+  // Sort oldest-first so agents receive older claims first (prioritizes stale work)
+  workingRows = sortRowsByAge(workingRows, dateCol);
+
+  const groups={}; const unkeyed=[];
+  workingRows.forEach(row => {
+    const k=getPatientKey(row);
+    if (k) { if (!groups[k]) groups[k]=[]; groups[k].push(row); }
+    else unkeyed.push(row);
+  });
+  state.groups = groups;
+
+  const related=[], singles=[];
+  Object.values(groups).forEach(g => { if (g.length>1) related.push(g); else singles.push(g[0]); });
+  unkeyed.forEach(r=>singles.push(r));
+  related.sort((a,b)=>b.length-a.length);
+
+  const buckets={};
+  const agentObjs = state.agents.filter(a=>a.included);
+  agentObjs.forEach(a=>{ buckets[a.name]=[]; });
+
+  let overflow = 0, statusFiltered = 0, exactMatches = 0, provMatches = 0;
+  const relGroupCount = related.length;
+  const totalRelatedClaims = related.reduce((s, g) => s + g.length, 0);
+  const relPct = state.relatedPct ?? 100;
+  const equityMode = document.getElementById('equityModeToggle')?.checked !== false;
+
+  // ── EQUITY CAP: each agent targets (totalRelatedClaims / activeAgents) ± tolerance ──
+  // Cap is on CLAIM COUNT from groups, not group count — prevents large groups from
+  // stacking on one agent while small groups spread to others.
+  // Prior queue offset is SYMMETRIC: over-served agents get a positive head-start
+  // (they fill up faster), under-served agents get a negative head-start (they have
+  // more room). Math.max(0) has been removed so both directions are honoured.
+  const agentRelClaimCounts = {}; // tracks related-claim claims assigned this run
+  const agentRelVirtualOffset = {}; // prior-session equity offset (can be negative)
+  if (equityMode) {
+    const activeCount = agentObjs.length;
+    const prior = state.priorRelatedCounts || {};
+    const priorTotal = Object.values(prior).reduce((s,v)=>s+v,0);
+    agentObjs.forEach(a => {
+      let virtualOffset = 0;
+      if (priorTotal > 0) {
+        let priorVal = prior[a.name] || 0;
+        if (!priorVal) {
+          const truncName = a.name.replace(/[:\\/\?\*\[\]]/g,'').slice(0,31);
+          priorVal = prior[truncName] || 0;
+        }
+        const priorFairShare = priorTotal / activeCount;
+        const deviation = priorVal - priorFairShare; // positive = got too many, negative = got too few
+        // Scale into current run's claim space; 50% memory dampens whiplash
+        const scaledDev = (deviation / priorTotal) * totalRelatedClaims;
+        virtualOffset = Math.round(scaledDev * 0.5); // symmetric — no Math.max(0) clamp
+      }
+      agentRelVirtualOffset[a.name] = virtualOffset;
+      agentRelClaimCounts[a.name] = 0;
+    });
+  } else {
+    agentObjs.forEach(a => { agentRelVirtualOffset[a.name] = 0; agentRelClaimCounts[a.name] = 0; });
+  }
+
+  // Per-agent related-CLAIM cap (not group count).
+  // equity mode: ceil(totalRelatedClaims / agents) + small tolerance (2 claims)
+  // slider mode: fraction of total related claims
+  const perAgentRelClaimCap = equityMode
+    ? Math.ceil(totalRelatedClaims / Math.max(1, agentObjs.length)) + 2
+    : relPct >= 100 ? Infinity : Math.max(1, Math.ceil(totalRelatedClaims * (relPct / 100)));
+
+  // Helper: effective filled slots for equity = actual assigned + prior offset
+  function relClaimLoad(agentName) {
+    return agentRelClaimCounts[agentName] + (agentRelVirtualOffset[agentName] || 0);
+  }
+
+  // Maps patient key → agent name, populated as groups are assigned.
+  // Ensures any single claim sharing a patient key with an already-assigned
+  // group always lands on the same agent (no cross-agent work overlap).
+  const groupAssignedTo = {};
+
+  let groupCounter = 0;
+  related.forEach(group => {
+    groupCounter++;
+    const gid = 'Group ' + String(groupCounter).padStart(3, '0');
+    const groupSize = group.length;
+
+    // ── FIX 3: Check ALL statuses in group, not just group[0] ────────────────
+    // A group passes status filtering if ANY claim in it passes (mixed-status
+    // groups are common; dropping the whole group on one bad claim is wrong).
+    // We still send group[0] to smartAssign for provider/cap metadata, but the
+    // status check is done here across the full group first.
+    const groupStatuses = [...new Set(group.map(r => String(r[statusCol]||'').toUpperCase()))];
+    const groupPassesStatus = (agentBatch) => {
+      if (!agentBatch || !statusRules[agentBatch] || !statusRules[agentBatch].length) return true;
+      return groupStatuses.some(s => statusRules[agentBatch].includes(s));
+    };
+
+    // Eligible = under their per-agent related-CLAIM cap (using effective load)
+    const eligibleAgents = agentObjs.filter(a => relClaimLoad(a.name) + groupSize <= perAgentRelClaimCap + groupSize - 1);
+    // ^ +groupSize-1 tolerance: we prefer under-cap agents but allow a group to
+    //   push an agent slightly over rather than refuse assignment entirely.
+    const pool = eligibleAgents.length ? eligibleAgents : agentObjs;
+
+    const result = smartAssign(pool, buckets, group[0], groupSize, statusRules, statusCol, groupPassesStatus);
+    if (result && result.error) {
+      if (result.reason.includes('Status mismatch')) statusFiltered += groupSize;
+      else overflow += groupSize;
+      group.forEach(r => state.unassignedReasons[r.ClaimID] = result.reason);
+      return;
+    }
+    const { agent: t, matchType } = result;
+    agentRelClaimCounts[t] += groupSize; // track by CLAIMS, not groups
+    if (matchType === 'exact') exactMatches += groupSize; else if (matchType === 'provider') provMatches += groupSize;
+    const groupKey = getPatientKey(group[0]);
+    if (groupKey) groupAssignedTo[groupKey] = t;
+    group.forEach(r=>buckets[t].push({...r,_gid:gid,_rel:true,_match:matchType}));
+  });
+
+  singles.forEach(row => {
+    // If this single shares a patient key with an already-assigned related group,
+    // pin it to that same agent to prevent cross-agent work overlap.
+    const rowKey = getPatientKey(row);
+    const pinnedAgent = rowKey ? groupAssignedTo[rowKey] : null;
+
+    let result;
+    if (pinnedAgent) {
+      const pinnedAgentObj = agentObjs.find(a => a.name === pinnedAgent);
+      const cap = pinnedAgentObj?.cap != null ? pinnedAgentObj.cap : state.globalCap;
+      const hardCapOk = cap == null || buckets[pinnedAgent].length + 1 <= cap;
+      // ── FIX 5: Soft fairness check on pinned singles ──────────────────────
+      // Pinning is patient-integrity logic — we always prefer keeping a patient
+      // on one agent. But if the pinned agent is already significantly over the
+      // fair-share claim count vs the lightest agent, we only pin if the gap is
+      // within MATCH_TOLERANCE*3 (6 claims). Beyond that, patient integrity
+      // yields to fairness and we fall through to normal smartAssign.
+      const lightestBucket = Math.min(...agentObjs.map(a => buckets[a.name].length));
+      const pinnedLoad = buckets[pinnedAgent]?.length ?? 0;
+      const fairnessOk = (pinnedLoad - lightestBucket) <= MATCH_TOLERANCE * 3;
+      if (pinnedAgentObj && hardCapOk && fairnessOk) {
+        const mt = getMatchType(pinnedAgent, row);
+        if (mt === 'exact') exactMatches++; else if (mt === 'provider') provMatches++;
+        buckets[pinnedAgent].push({...row, _gid: null, _rel: true, _match: mt, _pinnedToGroup: true});
+        agentRelClaimCounts[pinnedAgent] = (agentRelClaimCounts[pinnedAgent] || 0) + 1;
+        return;
+      }
+      // Pinned agent at hard cap or too far ahead — fall through to smartAssign
+    }
+
+    result = smartAssign(agentObjs, buckets, row, 1, statusRules, statusCol);
+    if (result && result.error) {
+      if (result.reason.includes('Status mismatch')) statusFiltered++;
+      else overflow++;
+      state.unassignedReasons[row.ClaimID] = result.reason;
+      return; 
+    }
+    const { agent: t, matchType } = result;
+    if (matchType === 'exact') exactMatches++; else if (matchType === 'provider') provMatches++;
+    buckets[t].push({...row,_gid:null,_rel:false,_match:matchType});
+  });
+
+  state.distribution=buckets;
+  state.overflowCount = overflow;
+  // Record run time
+  const nowStr = new Date().toLocaleTimeString('en-PH', {timeZone:'Asia/Manila', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true});
+  const lastRunEl = document.getElementById('lastRunTime');
+  if (lastRunEl) lastRunEl.textContent = `Last run: ${nowStr} PH`;
+  state.filteredOutStatus = statusFiltered;
+  state.exactMatches = exactMatches;
+  state.provMatches  = provMatches;
+  renderResults(activeAgents, related, singles, workingRows.length - overflow - statusFiltered);
+}
+
+function renderResults(agents,relGroups,singles,totalDistributed) {
+  const total=state.allRows.length;
+  const relClaims=relGroups.reduce((s,g)=>s+g.length,0);
+  
+  let banners = '';
+  if (state.filteredOutSys > 0) banners += `<div class="filter-banner">🤖 <strong>${state.filteredOutSys.toLocaleString()} claim${state.filteredOutSys!==1?'s':''}</strong> excluded — assigned to System Accounts</div>`;
+  if (state.filteredOutBilingual > 0) banners += `<div class="filter-banner">🌐 <strong>${state.filteredOutBilingual.toLocaleString()} claim${state.filteredOutBilingual!==1?'s':''}</strong> excluded — assigned to MVA Bilingual Team</div>`;
+  if (state.filteredOutDate > 0) banners += `<div class="filter-banner">📅 <strong>${state.filteredOutDate.toLocaleString()} claim${state.filteredOutDate!==1?'s':''}</strong> excluded — Review Date beyond cutoff</div>`;
+  if (state.filteredOutStatus > 0) banners += `<div class="filter-banner red">🚫 <strong>${state.filteredOutStatus.toLocaleString()} claim${state.filteredOutStatus!==1?'s':''}</strong> excluded — Status not allowed by active agents' batches</div>`;
+  if (state.overflowCount > 0) banners += `<div class="filter-banner amber">⚠️ <strong>${state.overflowCount.toLocaleString()} claim${state.overflowCount!==1?'s':''}</strong> unassigned — Cap overflow. Raise caps or add more agents.</div>`;
+
+  const matchPct = totalDistributed ? Math.round((state.exactMatches+state.provMatches)/totalDistributed*100) : 0;
+
+  // Count agents near/at cap
+  let nearCapCount = 0;
+  agents.forEach(a => {
+    const rows = state.distribution[a];
+    const agObj = state.agents.find(x=>x.name===a);
+    const cap = agObj?.cap != null ? agObj.cap : state.globalCap;
+    if (cap != null && rows.length >= cap * 0.9) nearCapCount++;
+  });
+
+  const nearCapCard = nearCapCount > 0
+    ? `<div class="stat-card sc-warn at-cap"><div class="stat-label">Near/At Cap</div><div class="stat-value">${nearCapCount}</div><div class="stat-sub">agents ≥90% limit ⚠</div></div>`
+    : `<div class="stat-card sc-cap"><div class="stat-label">Cap Status</div><div class="stat-value" style="color:var(--green)">OK</div><div class="stat-sub">all agents under cap</div></div>`;
+
+  document.getElementById('statsRow').innerHTML=`
+    ${banners}
+    <div class="stat-card sc-total"><div class="stat-label">Total Loaded</div><div class="stat-value" style="color:var(--muted)">${total.toLocaleString()}</div><div class="stat-sub">all files merged</div></div>
+    <div class="stat-card sc-dist"><div class="stat-label">Distributed</div><div class="stat-value" style="color:var(--accent)">${totalDistributed.toLocaleString()}</div><div class="stat-sub">eligible claims</div></div>
+    <div class="stat-card sc-rel"><div class="stat-label">Related Patients</div><div class="stat-value" style="color:var(--purple)">${relGroups.length}</div><div class="stat-sub">${relClaims} claims in groups</div></div>
+    ${Object.keys(state.priorRelatedCounts).length>0?`<div class="stat-card" style="border-color:rgba(168,85,247,0.35);background:rgba(168,85,247,0.05)"><div class="stat-label">Prior Queue</div><div class="stat-value" style="color:var(--purple);font-size:18px">⚖️</div><div class="stat-sub">offset applied (50% memory, symmetric)</div></div>`:''}
+    <div class="stat-card sc-match"><div class="stat-label">Provider Matched</div><div class="stat-value" style="color:var(--purple)">${matchPct}%</div><div class="stat-sub">${state.exactMatches} exact · ${state.provMatches} prov</div></div>
+    ${nearCapCard}
+  `;
+
+  const maxC=Math.max(...agents.map(a=>state.distribution[a].length),1);
+  document.getElementById('summaryTable').innerHTML=`<div class="dist-table-wrap"><table>
+    <thead><tr><th>Agent</th><th>Total Claims</th><th>Cap</th><th>Related Groups</th><th>Related Claims</th><th>Exact Match</th><th>Prov Match</th><th>Load Bar</th></tr></thead>
+    <tbody>${agents.map(a=>{
+      const rows=state.distribution[a];
+      const rC=rows.filter(r=>r._rel).length;
+      const rG=new Set(rows.filter(r=>r._rel).map(r=>r._gid)).size;
+      const eM=rows.filter(r=>r._match==='exact').length;
+      const pM=rows.filter(r=>r._match==='provider').length;
+      const agObj=state.agents.find(x=>x.name===a);
+      const effectiveCap = agObj?.cap != null ? agObj.cap : state.globalCap;
+      const pct = effectiveCap != null ? rows.length / effectiveCap : rows.length / maxC;
+      const atCap = effectiveCap != null && rows.length >= effectiveCap;
+      const nearCap = effectiveCap != null && rows.length >= effectiveCap * 0.9 && !atCap;
+      const barColor = atCap ? 'var(--red)' : nearCap ? 'var(--amber)' : 'linear-gradient(90deg,var(--accent),var(--accent2))';
+      const rowStyle = atCap ? 'background:rgba(239,68,68,0.04)' : nearCap ? 'background:rgba(245,158,11,0.04)' : '';
+      return `<tr style="${rowStyle}">
+        <td style="font-weight:600">${esc(a)}</td>
+        <td><span style="font-family:var(--mono);font-weight:700">${rows.length}</span></td>
+        <td><span style="font-family:var(--mono);font-size:11px;color:${atCap?'var(--red)':nearCap?'var(--amber)':'var(--muted)'}">${effectiveCap ?? '∞'}${atCap?' 🔴':nearCap?' ⚠️':''}</span></td>
+        <td><span class="badge badge-purple">🔗 ${rG} groups</span></td>
+        <td><span class="badge badge-blue">${rC} claims</span></td>
+        <td><span class="match-badge match-exact">🎯 ${eM}</span></td>
+        <td><span class="match-badge match-provider">≈ ${pM}</span></td>
+        <td><div style="width:120px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${Math.min(100,Math.round(pct*100))}%;background:${barColor};border-radius:3px"></div></div></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+
+  // ── Load Chart ────────────────────────────────────────────────────────────
+  const maxLoad = Math.max(...agents.map(a=>state.distribution[a].length), 1);
+  const barsHtml = agents.map(a => {
+    const cnt = state.distribution[a].length;
+    const agObj = state.agents.find(x=>x.name===a);
+    const cap = agObj?.cap != null ? agObj.cap : state.globalCap;
+    const pct = Math.round(cnt / maxLoad * 100);
+    const atCap = cap != null && cnt >= cap;
+    const nearCap = cap != null && cnt >= cap * 0.9 && !atCap;
+    const cls = atCap ? 'over-cap' : nearCap ? 'at-cap' : '';
+    const initials = a.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="load-bar-col" title="${esc(a)}: ${cnt} claims${cap?' / cap '+cap:''}">
+      <div class="load-bar-num">${cnt}</div>
+      <div class="load-bar-inner ${cls}" style="height:${Math.max(6,Math.round(pct*0.88))}px"></div>
+      <div class="load-bar-label">${initials}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('loadChartSection').innerHTML = `
+    <div class="load-chart-wrap">
+      <div class="load-chart-title">Load Distribution · <span style="color:var(--amber)">⚠ = near cap</span> · <span style="color:var(--red)">🔴 = at/over cap</span></div>
+      <div class="load-bars">${barsHtml}</div>
+    </div>`;
+
+  // ── Per-agent preview cards ───────────────────────────────────────────────
+  renderUnassignedPanel();
+
+  // Render prominent load chart above cards
+  renderProminentLoadChart(agents);
+
+  document.getElementById('distPreview').innerHTML=agents.map(agentName=>{
+    const ag=state.agents.find(a=>a.name===agentName);
+    const rows=state.distribution[agentName];
+    const relGrps={}, singleList=[];
+    rows.forEach(r=>{ if(r._rel){if(!relGrps[r._gid])relGrps[r._gid]=[];relGrps[r._gid].push(r);}else singleList.push(r); });
+
+    const agProvs = provAssignments[agentName] || [];
+    const provTagsHtml = agProvs.length
+      ? `<div style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:3px">${agProvs.map(a=>`<span style="background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);color:#93c5fd;border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:9px">${esc(a.provider)}${a.alphaStart?` ${esc(a.alphaStart)}-${esc(a.alphaEnd)}`:''}</span>`).join('')}</div>`
+      : '';
+
+    let html='';
+    Object.keys(relGrps).forEach(k=>{
+      const g=relGrps[k];
+      const mt = g[0]._match || 'none';
+      const mbHtml = mt==='exact'?`<span class="match-badge match-exact" style="font-size:8px;padding:1px 5px">🎯 EXACT</span>`:mt==='provider'?`<span class="match-badge match-provider" style="font-size:8px;padding:1px 5px">≈ PROV</span>`:'';
+      html+=`<div class="adc-group related">
+        <div class="adc-group-label" style="display:flex;align-items:center;gap:6px">🔗 Related · ${g.length} claims · ${esc(g[0]['Patient LN'])}, ${esc(g[0]['Patient FN'])} ${mbHtml}</div>
+        ${g.map(r=>`<div class="adc-claim"><span class="adc-claim-id">#${esc(r.ClaimID)}</span><span>${esc(r['Payer Name']||'—')}</span></div>`).join('')}
+      </div>`;
+    });
+
+    const SINGLE_PREVIEW = 8;
+    const hiddenCount = singleList.length - SINGLE_PREVIEW;
+    const cardId = 'singles-' + agentName.replace(/[^a-zA-Z0-9]/g,'');
+    if(singleList.length){
+      const show8=singleList.slice(0,SINGLE_PREVIEW);
+      html+=`<div class="adc-group">
+        <div class="adc-group-label">📄 Singles · ${singleList.length} claims</div>
+        ${show8.map(r=>{
+          const mt=r._match||'none';
+          const mb=mt==='exact'?`<span class="match-badge match-exact" style="font-size:8px;padding:1px 4px">🎯</span>`:mt==='provider'?`<span class="match-badge match-provider" style="font-size:8px;padding:1px 4px">≈</span>`:'';
+          return `<div class="adc-claim"><span class="adc-claim-id">#${esc(r.ClaimID)}</span><span>${esc(r['Patient LN'])}, ${esc(r['Patient FN'])}</span>${mb}</div>`;
+        }).join('')}
+        ${hiddenCount > 0 ? `
+          <div id="${cardId}-more" style="display:none">${singleList.slice(SINGLE_PREVIEW).map(r=>{
+            const mt=r._match||'none';
+            const mb=mt==='exact'?`<span class="match-badge match-exact" style="font-size:8px;padding:1px 4px">🎯</span>`:mt==='provider'?`<span class="match-badge match-provider" style="font-size:8px;padding:1px 4px">≈</span>`:'';
+            return `<div class="adc-claim"><span class="adc-claim-id">#${esc(r.ClaimID)}</span><span>${esc(r['Patient LN'])}, ${esc(r['Patient FN'])}</span>${mb}</div>`;
+          }).join('')}</div>
+          <div class="adc-expand-row" id="${cardId}-toggle" onclick="toggleSingles('${cardId}',${hiddenCount})">▼ Show ${hiddenCount} more</div>
+        ` : ''}
+      </div>`;
+    }
+
+    const eM=rows.filter(r=>r._match==='exact').length;
+    const pM=rows.filter(r=>r._match==='provider').length;
+    const matchSummary = (eM+pM)>0 ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${eM?`<span class="match-badge match-exact" style="font-size:9px">🎯 ${eM} exact</span>`:''}${pM?`<span class="match-badge match-provider" style="font-size:9px">≈ ${pM} prov</span>`:''}</div>` : '';
+    const initials=esc(agentName).split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+    // Batch pill counts
+    const b2cnt = rows.filter(r => { const b = state.agents.find(x=>x.name===agentName)?.batch; return b==='Batch 2'; }).length;
+    const b3cnt = rows.filter(r => { const b = state.agents.find(x=>x.name===agentName)?.batch; return b==='Batch 3'; }).length;
+    const agBatch = state.agents.find(x=>x.name===agentName)?.batch || '';
+    const batchPill = agBatch === 'Batch 2'
+      ? `<span class="adc-batch-pill b2">B2 · ${rows.length}</span>`
+      : agBatch === 'Batch 3'
+      ? `<span class="adc-batch-pill b3">B3 · ${rows.length}</span>`
+      : '';
+    const relCount = rows.filter(r=>r._rel).length;
+    const singleCount = rows.length - relCount;
+
+    // Cap health badge on card
+    const agObj2 = state.agents.find(x=>x.name===agentName);
+    const cap2 = agObj2?.cap != null ? agObj2.cap : state.globalCap;
+    const capBadge = cap2 != null
+      ? `<span style="font-family:var(--mono);font-size:9px;color:${rows.length>=cap2?'var(--red)':rows.length>=cap2*0.9?'var(--amber)':'var(--muted)'}">${rows.length}/${cap2}</span>`
+      : '';
+
+    return `<div class="agent-dist-card">
+      <div class="adc-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="agent-avatar" style="background:${ag?.color||'#3b82f6'}22;color:${ag?.color||'#3b82f6'};width:30px;height:30px;font-size:11px">${initials}</div>
+          <div>
+            <div class="adc-name">${esc(agentName)}</div>
+            <div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">
+              ${batchPill}
+              ${relCount>0?`<span style="font-family:var(--mono);font-size:9px;color:#d8b4fe;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);padding:1px 6px;border-radius:4px">🔗 ${relCount} rel</span>`:''}
+              ${singleCount>0?`<span style="font-family:var(--mono);font-size:9px;color:#93c5fd;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);padding:1px 6px;border-radius:4px">📄 ${singleCount} single</span>`:''}
+            </div>
+            ${matchSummary}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="adc-copy-btn" onclick="event.stopPropagation();copyClaimIds('${escQ(agentName)}',this)">📋 Copy IDs</button>
+            <button class="adc-copy-btn" style="background:rgba(16,185,129,0.12);border-color:rgba(16,185,129,0.3);color:var(--green)" onclick="event.stopPropagation();exportSingleAgent('${escQ(agentName)}')">&#11015; Export</button>
+            <div class="adc-count">${rows.length} claims</div>
+          </div>
+          ${capBadge}
+        </div>
+      </div>
+      ${provTagsHtml?`<div style="padding:8px 18px 0;border-bottom:1px solid var(--border)">${provTagsHtml}</div>`:''}
+      <div class="adc-body" style="max-height:none;overflow:visible">${html||'<div style="color:var(--muted);font-size:12px">No claims assigned</div>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSingles(cardId, hiddenCount) {
+  const moreDiv = document.getElementById(cardId + '-more');
+  const toggle = document.getElementById(cardId + '-toggle');
+  if (!moreDiv || !toggle) return;
+  const isOpen = moreDiv.style.display !== 'none';
+  moreDiv.style.display = isOpen ? 'none' : 'block';
+  toggle.textContent = isOpen ? `▼ Show ${hiddenCount} more` : '▲ Collapse';
+}
+
+// ── EXPORT EXCEL LOGIC ────────────────────────────────────────────────────────
+
+// Async wrapper to show loading state
+async function wrapExport(btnElement, exportFunc) {
+  const originalText = btnElement.innerHTML;
+  btnElement.innerHTML = '⏳ Exporting...';
+  // Disable all export buttons temporarily
+  const allBtns = document.querySelectorAll('.export-btn');
+  allBtns.forEach(b => b.disabled = true);
+  
+  try {
+    // Slight timeout to allow UI update before blocking main thread
+    await new Promise(resolve => setTimeout(resolve, 50)); 
+    await exportFunc();
+  } catch (err) {
+    console.error(err);
+    toast('Export Error: ' + err.message, 'error');
+  } finally {
+    btnElement.innerHTML = originalText;
+    allBtns.forEach(b => b.disabled = false);
+  }
+}
+
+function _normalizeDate(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (typeof val === 'number' || (typeof val === 'string' && /^\d{4,6}$/.test(val.trim()))) {
+    const serial = typeof val === 'number' ? val : parseInt(val, 10);
+    if (serial > 1000) {
+      const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+      if (!isNaN(d)) return `${String(d.getUTCMonth() + 1).padStart(2,'0')}/${String(d.getUTCDate()).padStart(2,'0')}/${d.getUTCFullYear()}`;
+    }
+  }
+  const s = String(val).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[2]}/${iso[3]}/${iso[1]}`;
+  const us = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (us) return `${String(us[1]).padStart(2,'0')}/${String(us[2]).padStart(2,'0')}/${us[3]}`;
+  return s;
+}
+
+function _applyHeaderStyle(row, bgHex) {
+  row.eachCell(cell => {
+    cell.font = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgHex } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+  });
+  row.height = 28;
+}
+
+function _applyDataRow(row, rowIdx) {
+  const isEven = rowIdx % 2 === 0;
+  row.eachCell({ includeEmpty: true }, (cell) => {
+    cell.font = { name: 'Arial', size: 10 };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isEven ? 'FFF5F7FA' : 'FFFFFFFF' } };
+    cell.alignment = { vertical: 'middle', wrapText: false };
+  });
+  row.height = 22;
+}
+
+// Applies productivity color coding rules globally to the data row (status, balance, due dates)
+function _applyProductivityColors(dataRow, r) {
+  // 1. Account Status
+  const statusCell = dataRow.getCell('status');
+  if (statusCell) {
+    const statusText = String(r['Status'] || r['Account Status'] || '').toUpperCase();
+    if (statusText.includes('DENIED')) {
+      statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4E6' } };
+      statusCell.font = { color: { argb: 'FF9F1239' }, bold: true, name: 'Arial', size: 10 };
+    } else if (statusText.includes('CLOSED') || statusText.includes('PAID')) {
+      statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+      statusCell.font = { color: { argb: 'FF4B5563' }, italic: true, name: 'Arial', size: 10 };
+    } else if (statusText.includes('PENDING') || statusText.includes('POR') || statusText.includes('REQUESTED')) {
+      statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEDD5' } };
+      statusCell.font = { color: { argb: 'FF9A3412' }, name: 'Arial', size: 10 };
+    } else if (statusText.includes('PURSUIT')) {
+      statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEF3C7' } };
+      statusCell.font = { color: { argb: 'FF92400E' }, bold: true, name: 'Arial', size: 10 };
+    } else if (statusText.includes('FILED')) {
+      statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+      statusCell.font = { color: { argb: 'FF1E40AF' }, name: 'Arial', size: 10 };
+    }
+  }
+
+  // 2. Review Date Highlighting
+  const reviewDtCell = dataRow.getCell('reviewdt');
+  if (reviewDtCell) {
+    const rDateStr = r['Review Dt'];
+    if (rDateStr) {
+      let d = typeof rDateStr === 'number' ? new Date(Math.round((rDateStr - 25569) * 86400 * 1000)) : new Date(rDateStr);
+      if (!isNaN(d)) {
+        d.setHours(0,0,0,0);
+        const today = new Date(); today.setHours(0,0,0,0);
+        if (d < today) {
+          // Past due -> Red
+          reviewDtCell.font = { name: 'Arial', size: 10, color: { argb: 'FFDC2626' }, bold: true };
+        } else if (d.getTime() === today.getTime()) {
+          // Due Today -> Amber
+          reviewDtCell.font = { name: 'Arial', size: 10, color: { argb: 'FFD97706' }, bold: true };
+        }
+      }
+    }
+  }
+
+  // 3. High/Low Balance
+  const balanceCell = dataRow.getCell('balance');
+  if (balanceCell) {
+    const rawBalance = r['Balance'];
+    const balance = (rawBalance !== null && rawBalance !== undefined && rawBalance !== '')
+      ? parseFloat(String(rawBalance).replace(/[^0-9.\-]/g, '')) : null;
+      
+    if (balance !== null && !isNaN(balance)) {
+      balanceCell.numFmt = '$#,##0.00';
+      balanceCell.alignment = { vertical: 'middle', horizontal: 'right' };
+      if (balance >= 5000) {
+        // High Value
+        balanceCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF065F46' } };
+        balanceCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD1FAE5' } };
+      } else if (balance >= 1000) {
+        balanceCell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF065F46' } };
+      } else if (balance <= 0) {
+        // Zero or negative
+        balanceCell.font = { name: 'Arial', size: 10, color: { argb: 'FF9CA3AF' } };
+      }
+    }
+  }
+}
+
+async function _buildStyledWorkbook(agentList, distributionMap, agentStateList, includeUnassigned = true) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'QueueDistributor v24';
+  wb.lastModifiedBy = 'QueueDistributor';
+  wb.created = new Date();
+  wb.modified = new Date();
+
+  // ── PALETTE ───────────────────────────────────────────────────────────────────
+  const HEADER_BLUE    = 'FF1E3A5F';
+  const HEADER_PURPLE  = 'FF3B0764';
+  const DONE_GREEN     = 'FFD1FAE5';
+  const DONE_TEXT      = 'FF065F46';
+  const IN_PROG_YELLOW = 'FFFEF9C3';
+  const IN_PROG_TEXT   = 'FF713F12';
+  const NEEDS_REV_FILL = 'FFFFE4E6';
+  const NEEDS_REV_TEXT = 'FF9F1239';
+
+  // Related-group band palette: alternating soft tints (blue / purple / teal / amber)
+  const GROUP_BANDS = [
+    { fill: 'FFE0EFFE', font: 'FF1E3A5F' }, // soft blue
+    { fill: 'FFF3E8FF', font: 'FF4A1F7B' }, // soft purple
+    { fill: 'FFD1FAE5', font: 'FF064E3B' }, // soft teal/green
+    { fill: 'FFFEF3C7', font: 'FF78350F' }, // soft amber
+  ];
+
+  const THIN_BORDER = { style: 'thin', color: { argb: 'FFD1D5DB' } };
+  const MED_BORDER  = { style: 'medium', color: { argb: 'FF6B7280' } };
+  const RELATED_ACCENT = { style: 'medium', color: { argb: 'FF6366F1' } };
+
+  function _fullBorder(top, bottom) {
+    return {
+      top: top ? MED_BORDER : THIN_BORDER,
+      bottom: bottom ? MED_BORDER : THIN_BORDER,
+      left: THIN_BORDER, right: THIN_BORDER
+    };
+  }
+
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' });
+
+  // ── SUMMARY SHEET ─────────────────────────────────────────────────────────────
+  const sumSheet = wb.addWorksheet('📊 Summary', { views: [{ state: 'frozen', ySplit: 2 }] });
+  sumSheet.properties.tabColor = { argb: 'FF1E3A5F' };
+
+  // Row 1: Report title banner
+  sumSheet.mergeCells('A1:L1');
+  const titleCell = sumSheet.getCell('A1');
+  titleCell.value = `Queue Distribution Report  ·  Generated ${todayStr}  ·  ${agentList.length} agents`;
+  titleCell.font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  sumSheet.getRow(1).height = 30;
+
+  // Row 2: Column headers
+  sumSheet.columns = [
+    { key: 'role',   width: 14 }, { key: 'agent',  width: 26 }, { key: 'total', width: 14 },
+    { key: 'cap',    width: 12 }, { key: 'rg',    width: 16 },
+    { key: 'rc',     width: 16 }, { key: 'sc',    width: 14 },
+    { key: 'bal',    width: 16 }, { key: 'em',    width: 20 },
+    { key: 'pm',     width: 16 }, { key: 'load',  width: 22 },
+    { key: 'provs',  width: 44 }
+  ];
+  const headers2 = ['Role','Agent','Total Claims','Cap','Related Groups','Related Claims',
+                    'Single Claims','Total Balance','Exact Match','Prov Match','Load','Assigned Providers'];
+  const hdrRow = sumSheet.getRow(2);
+  headers2.forEach((h, i) => { hdrRow.getCell(i+1).value = h; });
+  _applyHeaderStyle(hdrRow, HEADER_BLUE);
+
+  const maxTotal = Math.max(...agentList.map(a => (distributionMap[a]||[]).length), 1);
+
+  agentList.forEach((a, i) => {
+    const rows = distributionMap[a] || [];
+    const agObj = agentStateList.find(x => x.name === a);
+    const rC = rows.filter(r => r._rel).length;
+    const rG = new Set(rows.filter(r => r._rel && r._gid).map(r => r._gid)).size;
+    const effectiveCap = agObj?.cap != null ? agObj.cap : state.globalCap;
+    const provs = (provAssignments[a]||[]).map(p=>p.provider+(p.alphaStart?` ${p.alphaStart}-${p.alphaEnd}`:'')).join('; ');
+    const totalBal = rows.reduce((s, r) => s + (parseFloat(String(r['Balance']||'').replace(/[^0-9.\-]/g,'')) || 0), 0);
+    const barLen = Math.round((rows.length / maxTotal) * 20);
+    const bar = '█'.repeat(barLen) + '░'.repeat(20 - barLen);
+
+    const row = sumSheet.addRow({
+      role: agObj?.role || 'TM', agent: a, total: rows.length, cap: effectiveCap ?? 'Unlimited',
+      rg: rG, rc: rC, sc: rows.length - rC, bal: totalBal,
+      em: rows.filter(r => r._match === 'exact').length,
+      pm: rows.filter(r => r._match === 'provider').length,
+      load: `${bar} ${rows.length}`,
+      provs
+    });
+    _applyDataRow(row, i);
+    ['total','cap','rg','rc','sc','em','pm'].forEach(k => row.getCell(k).alignment = { horizontal: 'center', vertical: 'middle' });
+    row.getCell('role').alignment = { horizontal: 'center', vertical: 'middle' };
+    const roleVal = agObj?.role || 'TM';
+    const roleColor = roleVal === 'AM' ? 'FFFBBF24' : roleVal === 'POC' ? 'FF34D399' : 'FF94A3B8';
+    row.getCell('role').font = { name: 'Arial', size: 10, bold: roleVal !== 'TM', color: { argb: roleColor } };
+    row.getCell('bal').numFmt = '$#,##0.00';
+    row.getCell('bal').alignment = { horizontal: 'right', vertical: 'middle' };
+    row.getCell('load').font = { name: 'Courier New', size: 9, color: { argb: 'FF1E40AF' } };
+    row.getCell('load').alignment = { horizontal: 'left', vertical: 'middle' };
+    // Heat color on load bar: green < 70%, amber 70-90%, red 90%+
+    const pct = effectiveCap ? rows.length / effectiveCap : rows.length / maxTotal;
+    if (pct >= 0.9) row.getCell('load').font = { ...row.getCell('load').font, color: { argb: 'FFDC2626' } };
+    else if (pct >= 0.7) row.getCell('load').font = { ...row.getCell('load').font, color: { argb: 'FFD97706' } };
+    else row.getCell('load').font = { ...row.getCell('load').font, color: { argb: 'FF059669' } };
+    row.height = 22;
+  });
+
+  // Summary: add totals row
+  const totRow = sumSheet.addRow({
+    role: '', agent: 'TOTAL', total: agentList.reduce((s,a)=>s+(distributionMap[a]||[]).length,0),
+    cap: '', rg: '', rc: '', sc: '', 
+    bal: agentList.reduce((s,a)=>{
+      return s+(distributionMap[a]||[]).reduce((ss,r)=>ss+(parseFloat(String(r['Balance']||'').replace(/[^0-9.\-]/g,''))||0),0);
+    },0),
+    em:'',pm:'',load:'',provs:''
+  });
+  totRow.eachCell({includeEmpty:true}, cell => {
+    cell.font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FF0F172A' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    cell.border = { top: MED_BORDER, bottom: MED_BORDER };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+  totRow.getCell('agent').alignment = { horizontal: 'left', vertical: 'middle' };
+  totRow.getCell('bal').numFmt = '$#,##0.00';
+  totRow.getCell('bal').alignment = { horizontal: 'right', vertical: 'middle' };
+  totRow.height = 24;
+
+  sumSheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: 12 } };
+
+  // ── PER-AGENT SHEETS ─────────────────────────────────────────────────────────
+  const AGENT_COLORS = ['FF3B82F6','FF22D3EE','FF10B981','FFA855F7','FFF59E0B',
+                        'FFEF4444','FFEC4899','FF14B8A6','FFF97316','FF6366F1'];
+
+  agentList.forEach((agentName, agentIdx) => {
+    const rows = distributionMap[agentName];
+    if (!rows.length) return;
+
+    const agObj = agentStateList.find(x => x.name === agentName);
+    const effectiveCap = agObj?.cap != null ? agObj.cap : state.globalCap;
+    const rC = rows.filter(r => r._rel).length;
+    const rG = new Set(rows.filter(r => r._rel && r._gid).map(r => r._gid)).size;
+    const totalBal = rows.reduce((s, r) => s + (parseFloat(String(r['Balance']||'').replace(/[^0-9.\-]/g,''))||0), 0);
+    const agentColor = AGENT_COLORS[agentIdx % AGENT_COLORS.length];
+
+    const sheetName = agentName.replace(/[:\\\/\?\*\[\]]/g, '').slice(0, 31);
+    const ws = wb.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 2 }] });
+    ws.properties.tabColor = { argb: agentColor };
+
+    // ── Row 1: Agent identity banner ────────────────────────────────────────
+    ws.mergeCells('A1:O1');
+    const agBanner = ws.getCell('A1');
+    const capStr = effectiveCap ? ` · Cap: ${effectiveCap}` : '';
+    agBanner.value = `${agentName}  ·  ${rows.length} Claims  ·  ${rG} Related Groups (${rC} claims)  ·  Balance: $${totalBal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}${capStr}  ·  ${todayStr}`;
+    agBanner.font  = { name: 'Arial', bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+    agBanner.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: agentColor } };
+    agBanner.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    ws.getRow(1).height = 26;
+
+    // ── Row 2: Column headers ────────────────────────────────────────────────
+    ws.columns = [
+      { key: 'rcg',      width: 15 }, { key: 'cid',      width: 14 },
+      { key: 'patient',  width: 26 }, { key: 'dob',      width: 13 },
+      { key: 'ssn',      width: 12 }, { key: 'payer',    width: 30 },
+      { key: 'facility', width: 36 }, { key: 'claimno',  width: 22 },
+      { key: 'reviewdt', width: 13 }, { key: 'status',   width: 26 },
+      { key: 'balance',  width: 13 }, { key: 'agent',    width: 24 },
+      { key: 'done',     width: 14 }, { key: 'remarks',  width: 30 },
+      { key: 'notes',    width: 34 }
+    ];
+    const hdrRow2 = ws.getRow(2);
+    ['Related Group','Claim ID','Patient Name','DOB','Last 4 SSN','Payer',
+     'Facility','Claim #','Review Date','Account Status','Balance',
+     'Previously Assigned','✓ Done','Remarks','Notes']
+      .forEach((h, i) => { hdrRow2.getCell(i+1).value = h; });
+    _applyHeaderStyle(hdrRow2, HEADER_PURPLE);
+
+    // ── Build group metadata: assign band index per gid ──────────────────────
+    const gidOrder = [];
+    const gidBandMap = {};
+    rows.forEach(r => {
+      if (r._rel && r._gid && !gidBandMap.hasOwnProperty(r._gid)) {
+        gidBandMap[r._gid] = gidOrder.length % GROUP_BANDS.length;
+        gidOrder.push(r._gid);
+      }
+    });
+
+    // ── Track row ranges per gid for merging ─────────────────────────────────
+    const gidFirstRow = {};  // gid -> first excel row number (1-indexed, +2 for header rows)
+    const gidLastRow  = {};
+
+    rows.forEach((r, i) => {
+      const excelRowNum = i + 3; // row 1 = banner, row 2 = header, data starts row 3
+      const dataRow = ws.addRow({
+        rcg:     r._rel ? (r._gid || '') : '',
+        cid:     String(r['ClaimID'] ?? ''),
+        patient: ((r['Patient FN']||'') + ' ' + (r['Patient LN']||'')).trim(),
+        dob:     _normalizeDate(r['Patient DOB']),
+        ssn:     r['Last 4 SSN'] ?? '',
+        payer:   r['Payer Name'] ?? '',
+        facility:r['Facility Name'] ?? '',
+        claimno: String(r['Claim #'] ?? ''),
+        reviewdt:_normalizeDate(r['Review Dt']),
+        status:  r['Status'] ?? '',
+        balance: '',
+        agent:   r['Assigned To'] ?? '',
+        done: '', remarks: '', notes: ''
+      });
+
+      // Determine if this is first/last row of a related group (for thick borders)
+      const isFirstInGroup = r._rel && r._gid &&
+        (i === 0 || rows[i-1]._gid !== r._gid);
+      const isLastInGroup = r._rel && r._gid &&
+        (i === rows.length - 1 || rows[i+1]._gid !== r._gid);
+
+      // Track for merge
+      if (r._rel && r._gid) {
+        if (isFirstInGroup) gidFirstRow[r._gid] = excelRowNum;
+        if (isLastInGroup)  gidLastRow[r._gid]  = excelRowNum;
+      }
+
+      // ── Base row style ────────────────────────────────────────────────────
+      if (r._rel && r._gid && gidBandMap.hasOwnProperty(r._gid)) {
+        // Related group: use band color
+        const band = GROUP_BANDS[gidBandMap[r._gid]];
+        dataRow.eachCell({ includeEmpty: true }, cell => {
+          cell.font = { name: 'Arial', size: 10 };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: band.fill } };
+          cell.alignment = { vertical: 'middle', wrapText: false };
+        });
+      } else {
+        // Single / unrelated: standard zebra
+        _applyDataRow(dataRow, i);
+      }
+      dataRow.height = 22;
+
+      // ── Borders ──────────────────────────────────────────────────────────
+      dataRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        const isRCGcol = colNum === 1;
+        cell.border = {
+          top:    isFirstInGroup ? { style: 'medium', color: { argb: 'FF4F46E5' } } : THIN_BORDER,
+          bottom: isLastInGroup  ? { style: 'medium', color: { argb: 'FF4F46E5' } } : THIN_BORDER,
+          left:   isRCGcol && r._rel
+                    ? { style: 'thick', color: { argb: 'FF6366F1' } }
+                    : THIN_BORDER,
+          right:  THIN_BORDER
+        };
+      });
+
+      // ── Productivity colors on top of group band ──────────────────────────
+      _applyProductivityColors(dataRow, r);
+
+      // ── RCG cell: bold group label, indigo font ───────────────────────────
+      if (r._rel && r._gid) {
+        const rcgCell = dataRow.getCell('rcg');
+        const band = GROUP_BANDS[gidBandMap[r._gid]];
+        rcgCell.font = { name: 'Arial', size: 9, bold: true, color: { argb: band.font } };
+        rcgCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: false };
+      }
+
+      // ── Text format IDs ──────────────────────────────────────────────────
+      ['cid','claimno'].forEach(k => { dataRow.getCell(k).numFmt = '@'; });
+    });
+
+    // ── Merge RCG cells vertically per group ────────────────────────────────
+    gidOrder.forEach(gid => {
+      const r1 = gidFirstRow[gid];
+      const r2 = gidLastRow[gid];
+      if (r1 && r2 && r2 > r1) {
+        try { ws.mergeCells(`A${r1}:A${r2}`); } catch(e) { /* skip if already merged */ }
+        const merged = ws.getCell(`A${r1}`);
+        const band = GROUP_BANDS[gidBandMap[gid]];
+        merged.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        merged.font = { name: 'Arial', size: 9, bold: true, color: { argb: band.font } };
+        merged.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: band.fill } };
+        merged.border = {
+          top: { style: 'medium', color: { argb: 'FF4F46E5' } },
+          bottom: { style: 'medium', color: { argb: 'FF4F46E5' } },
+          left: { style: 'thick', color: { argb: 'FF6366F1' } },
+          right: THIN_BORDER
+        };
+      }
+    });
+
+    // ── Conditional formats ──────────────────────────────────────────────────
+    const dataRef = `A3:O${rows.length + 2}`;
+    // ✓ Done → green
+    ws.addConditionalFormatting({
+      ref: dataRef,
+      rules: [{ type: 'expression', formulae: [`$M3="✓ Done"`],
+        style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: DONE_GREEN } },
+                 font: { color: { argb: DONE_TEXT }, italic: true } } }]
+    });
+    // In Progress → yellow
+    ws.addConditionalFormatting({
+      ref: dataRef,
+      rules: [{ type: 'expression', formulae: [`$M3="In Progress"`],
+        style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: IN_PROG_YELLOW } },
+                 font: { color: { argb: IN_PROG_TEXT }, bold: true } } }]
+    });
+    // Needs Review → red tint
+    ws.addConditionalFormatting({
+      ref: dataRef,
+      rules: [{ type: 'expression', formulae: [`$M3="Needs Review"`],
+        style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: NEEDS_REV_FILL } },
+                 font: { color: { argb: NEEDS_REV_TEXT }, bold: true } } }]
+    });
+
+    // ── Dropdown validation for ✓ Done ───────────────────────────────────────
+    ws.dataValidations.add(`M3:M${rows.length + 2}`, {
+      type: 'list', allowBlank: true, formulae: ['"✓ Done,In Progress,Needs Review"']
+    });
+
+    // ── AutoFilter on header row ─────────────────────────────────────────────
+    ws.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: 15 } };
+
+    // ── Notes/Remarks: allow text wrap + taller rows for last 2 data cols ────
+    ws.getColumn('remarks').width = 30;
+    ws.getColumn('notes').width = 34;
+
+    // ── Print setup: landscape, fit to 1 page wide ───────────────────────────
+    ws.pageSetup = {
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      paperSize: 9, // A4
+      margins: { left: 0.4, right: 0.4, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 }
+    };
+    ws.headerFooter = {
+      oddHeader: `&L&B${agentName}&C&BQueue Distribution · ${todayStr}&R&BPage &P of &N`,
+      oddFooter: `&LGenerated by Queue Distributor v24&R${rows.length} claims · ${rG} related groups`
+    };
+  });
+
+  // ── UNASSIGNED CLAIMS SHEET ──
+  const globallyAssignedIds = new Set();
+  Object.values(state.distribution).flat().forEach(r => globallyAssignedIds.add(r.ClaimID));
+  const unassignedClaims = state.allRows.filter(r => !globallyAssignedIds.has(r.ClaimID));
+
+  if (includeUnassigned && unassignedClaims.length > 0) {
+    const wsUn = wb.addWorksheet('Unassigned', { views: [{ state: 'frozen', ySplit: 1 }] });
+    wsUn.columns = [
+      { header: 'Claim ID', key: 'cid', width: 14 },
+      { header: 'Patient Name', key: 'patient', width: 26 },
+      { header: 'DOB', key: 'dob', width: 13 },
+      { header: 'Last 4 SSN', key: 'ssn', width: 12 },
+      { header: 'Payer', key: 'payer', width: 30 },
+      { header: 'Facility', key: 'facility', width: 36 },
+      { header: 'Claim #', key: 'claimno', width: 22 },
+      { header: 'Review Date', key: 'reviewdt', width: 13 },
+      { header: 'Account Status', key: 'status', width: 26 },
+      { header: 'Balance', key: 'balance', width: 12 },
+      { header: 'Previously Assigned', key: 'agent', width: 24 },
+      { header: 'Reason Unassigned', key: 'reason', width: 28 },
+    ];
+    _applyHeaderStyle(wsUn.getRow(1), 'FF6B7280'); // Muted gray header
+
+    unassignedClaims.forEach((r, i) => {
+      const reason = state.unassignedReasons[r.ClaimID] || 'Unknown Unassigned Reason';
+        
+      const dataRow = wsUn.addRow({
+        cid: String(r['ClaimID'] ?? ''),
+        patient: ((r['Patient FN']||'') + ' ' + (r['Patient LN']||'')).trim(),
+        dob: _normalizeDate(r['Patient DOB']), ssn: r['Last 4 SSN'] ?? '',
+        payer: r['Payer Name'] ?? '', facility: r['Facility Name'] ?? '',
+        claimno: String(r['Claim #'] ?? ''), reviewdt: _normalizeDate(r['Review Dt']),
+        status: r['Status'] ?? '', balance: '',
+        agent: r['Assigned To'] ?? '', reason: reason
+      });
+      _applyDataRow(dataRow, i);
+      _applyProductivityColors(dataRow, r);
+
+      ['cid','claimno'].forEach(k => { dataRow.getCell(k).numFmt = '@'; });
+    });
+    wsUn.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 12 } };
+  }
+
+  return wb;
+}
+
+
+async function confirmCombinedExport() {
+  const confirmed = window.confirm(
+    '⚠️ Combined Export Warning\n\n' +
+    'This creates ONE shared Excel file where all agent sheets are visible to each other — ' +
+    'any agent who opens it can see everyone else\'s claims.\n\n' +
+    'Use ZIP Export instead to give each agent their own private file.\n\n' +
+    'Continue with Combined anyway?'
+  );
+  if (confirmed) {
+    const btn = document.querySelector('[onclick="confirmCombinedExport()"]') || document.body;
+    await wrapExport(btn, exportCombined);
+  }
+}
+
+async function exportCombined() {
+  const agents = Object.keys(state.distribution);
+  if (!agents.length) { toast('No distribution to export', 'error'); return; }
+  const wb = await _buildStyledWorkbook(agents, state.distribution, state.agents);
+  const today = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${getFnPrefix()}_${today}.xlsx`; a.click();
+  toast(`Combined workbook exported`, 'success');
+}
+
+async function exportBatch(batchLabel) {
+  const batchMembers = BATCH_DEFS[batchLabel];
+  const agents = Object.keys(state.distribution).filter(a => batchMembers.includes(a));
+  if (!agents.length) { toast(`No distributed agents found for ${batchLabel}`, 'error'); return; }
+  const wb = await _buildStyledWorkbook(agents, state.distribution, state.agents);
+  const today = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${getFnPrefix()}_${batchLabel.replace(/\s/g,'')}_${today}.xlsx`; a.click();
+  toast(`${batchLabel} exported`, 'success');
+}
+
+async function exportAll() {
+  const agents = Object.keys(state.distribution);
+  if (!agents.length) { toast('No distribution to export', 'error'); return; }
+  const today = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  
+  const activeAgents = agents.filter(a => state.distribution[a].length > 0);
+  const total = activeAgents.length;
+
+  // Show progress bar
+  const prog = document.getElementById('export-progress');
+  const epBar = document.getElementById('ep-bar');
+  const epText = document.getElementById('ep-text');
+  const epPct = document.getElementById('ep-pct');
+  if (prog) prog.classList.add('visible');
+
+  const zip = new JSZip();
+
+  // ── 1. Individual agent files (no Summary sheet) ──────────────────────────
+  for (let i = 0; i < activeAgents.length; i++) {
+    const agentName = activeAgents[i];
+    const pct = Math.round((i / (total + 1)) * 75);
+    if (epBar) epBar.style.width = pct + '%';
+    if (epText) epText.textContent = `Building file ${i+1} of ${total} — ${agentName}…`;
+    if (epPct) epPct.textContent = pct + '%';
+
+    const wb = await _buildStyledWorkbook([agentName], state.distribution, state.agents, false);
+    const sumSheet = wb.getWorksheet('📊 Summary');
+    if (sumSheet) wb.removeWorksheet(sumSheet.id);
+    
+    const buf = await wb.xlsx.writeBuffer();
+    const fileName = `${agentName.replace(/[^a-zA-Z0-9 _-]/g,'').trim()}_${getFnPrefix()}_${today}.xlsx`;
+    zip.file(`Agents/${fileName}`, buf);
+
+    await new Promise(res => setTimeout(res, 50));
+  }
+
+  // ── 2. Team Leader / AM file (Summary + all agent sheets) ─────────────────
+  if (epBar) epBar.style.width = '80%';
+  if (epText) epText.textContent = `Building Team Leader overview file…`;
+  if (epPct) epPct.textContent = '80%';
+  await new Promise(res => setTimeout(res, 50));
+
+  const tlWb = await _buildStyledWorkbook(activeAgents, state.distribution, state.agents, false);
+  const tlBuf = await tlWb.xlsx.writeBuffer();
+  const tlFileName = `TEAM_OVERVIEW_${getFnPrefix()}_${today}.xlsx`;
+  zip.file(tlFileName, tlBuf);
+
+  if (epText) epText.textContent = `Compressing ${total + 1} files into ZIP…`;
+  if (epPct) epPct.textContent = '90%';
+  if (epBar) epBar.style.width = '90%';
+
+  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+  const zipName = `AllAgents_${getFnPrefix()}_${today}.zip`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(zipBlob);
+  a.download = zipName;
+  a.click();
+
+  if (epBar) epBar.style.width = '100%';
+  if (epText) epText.textContent = `✅ ${total} agent files + 1 Team Leader file — ${zipName}`;
+  if (epPct) epPct.textContent = '100%';
+  setTimeout(() => { if (prog) prog.classList.remove('visible'); }, 3500);
+  
+  toast(`ZIP ready: ${total} agent files + Team Overview inside!`, 'success');
+}
+
+async function exportSingleAgent(agentName) {
+  if (!state.distribution[agentName] || !state.distribution[agentName].length) {
+    toast(`No claims for ${agentName}`, 'error'); return;
+  }
+  const today = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  const wb = await _buildStyledWorkbook([agentName], state.distribution, state.agents, false);
+  const sumSheet = wb.getWorksheet('📊 Summary');
+  if (sumSheet) wb.removeWorksheet(sumSheet.id);
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${agentName.replace(/[^a-zA-Z0-9 _-]/g,'').trim()}_${getFnPrefix()}_${today}.xlsx`;
+  a.click();
+  toast(`Exported: ${agentName}`, 'success');
+}
+
+async function exportSummarySheet() {
+  const agents=Object.keys(state.distribution);
+  if (!agents.length) { toast('No distribution to export', 'error'); return; }
+  const today=new Date().toISOString().split('T')[0];
+  const data=agents.map(a=>{
+    const rows=state.distribution[a];
+    const rC=rows.filter(r=>r._rel).length;
+    return {
+      'Agent':a, 'Total Claims':rows.length, 'Cap':state.agents.find(x=>x.name===a)?.cap??state.globalCap??'Unlimited',
+      'Related Groups':new Set(rows.filter(r=>r._rel).map(r=>r._gid)).size, 'Related Claims':rC, 'Single Claims':rows.length-rC,
+      'Exact Provider Match':rows.filter(r=>r._match==='exact').length, 'Provider Match':rows.filter(r=>r._match==='provider').length,
+      'Assigned Providers':(provAssignments[a]||[]).map(p=>p.provider+(p.alphaStart?` ${p.alphaStart}-${p.alphaEnd}`:'')).join('; ')
+    };
+  });
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb,ws,'Summary');
+  XLSX.writeFile(wb,`Distribution_Summary_${today}.xlsx`);
+  toast('Summary exported!','success');
+}
+
+function showTime() {
+  const now = new Date();
+  const ph = now.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  const et = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: true });
+  document.getElementById('currentTime').textContent = `🇵🇭 ${ph} · US/ET ${et}`;
+}
+showTime();
+setInterval(showTime, 1000);
+setReviewDateToday();
+applyGlobalCap('9999');
+
+function toast(msg,type='info') {
+  const el=document.getElementById('toast');
+  const icons={success:'✓',error:'✕',info:'ℹ'};
+  el.innerHTML=`<span>${icons[type]||'ℹ'}</span><span>${esc(msg)}</span>`;
+  el.className=`show ${type}`;
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('show'),3500);
+}
+
+// ── RE-RUN ───────────────────────────────────────────────────────────────────
+function rerunDistribution() {
+  if (!Object.keys(state.distribution).length && !state.allRows.length) {
+    toast('No data loaded yet', 'error'); return;
+  }
+  showSpinner();
+  setTimeout(() => { runDistribution(); hideSpinner(); toast('Re-run complete', 'success'); }, 60);
+}
+
+// ── STICKY EXPORT BAR visibility ─────────────────────────────────────────────
+function updateStickyBar() {
+  const bar = document.getElementById('stickyExportBar');
+  const panel = document.getElementById('panel-results');
+  if (!bar || !panel) return;
+  bar.classList.toggle('visible', !panel.classList.contains('hidden'));
+}
+
+// ── FILENAME TEMPLATE ────────────────────────────────────────────────────────
+function updateFnPreview() {
+  const prefix = (document.getElementById('fnPrefix')?.value || 'QueueDist').trim() || 'QueueDist';
+  const today = new Date().toLocaleDateString('en-PH', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'-');
+  document.getElementById('fnPreview').textContent = `AgentName_${prefix}_${today}.xlsx`;
+}
+function getFnPrefix() {
+  return (document.getElementById('fnPrefix')?.value || 'QueueDist').trim() || 'QueueDist';
+}
+
+// ── COPY CLAIM IDs ────────────────────────────────────────────────────────────
+function copyClaimIds(agentName, btnEl) {
+  const rows = state.distribution[agentName] || [];
+  const ids = rows.map(r => r.ClaimID).filter(Boolean).join('\n');
+  if (!ids) { toast('No claim IDs to copy', 'error'); return; }
+  navigator.clipboard.writeText(ids).then(() => {
+    btnEl.textContent = '✓ Copied!';
+    btnEl.classList.add('copied');
+    setTimeout(() => { btnEl.textContent = '📋 Copy IDs'; btnEl.classList.remove('copied'); }, 1800);
+  }).catch(() => {
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = ids; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    btnEl.textContent = '✓ Copied!'; btnEl.classList.add('copied');
+    setTimeout(() => { btnEl.textContent = '📋 Copy IDs'; btnEl.classList.remove('copied'); }, 1800);
+  });
+}
+
+// ── CLAIM AGE SORT ─────────────────────────────────────────────────────────
+// Called inside runDistribution before distribution to sort oldest-first
+function sortRowsByAge(rows, dateCol) {
+  return [...rows].sort((a, b) => {
+    const parseD = v => {
+      if (!v) return Infinity;
+      if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000)).getTime();
+      return new Date(v).getTime() || Infinity;
+    };
+    return parseD(a[dateCol]) - parseD(b[dateCol]);
+  });
+}
+
+// ── UNASSIGNED PANEL ─────────────────────────────────────────────────────────
+function renderUnassignedPanel() {
+  const slot = document.getElementById('unassignedPanelSlot');
+  if (!slot) return;
+  const reasons = state.unassignedReasons || {};
+  const entries = Object.entries(reasons);
+  if (!entries.length) { slot.innerHTML = ''; return; }
+
+  // Group by reason category
+  const groups = {};
+  entries.forEach(([id, reason]) => {
+    const cat = reason.includes('Cap') ? 'cap'
+      : reason.includes('Date') ? 'date'
+      : reason.includes('Status') ? 'status'
+      : reason.includes('System') ? 'sys'
+      : reason.includes('Bilingual') ? 'sys'
+      : 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push({ id, reason });
+  });
+
+  const catLabel = { cap:'⚠ Cap Overflow', date:'📅 Future Date', status:'🚫 Status Mismatch', sys:'🤖 System/Bilingual', other:'❓ Other' };
+  const catClass = { cap:'cap', date:'date', status:'status', sys:'sys', other:'' };
+
+  const totalExcluded = entries.length;
+  const panelId = 'uaPanel';
+
+  let tableRows = '';
+  Object.keys(groups).forEach(cat => {
+    groups[cat].forEach(({id, reason}) => {
+      tableRows += `<tr><td style="font-family:var(--mono);font-size:11px">${esc(id)}</td><td class="ua-reason ${catClass[cat]}">${esc(reason)}</td></tr>`;
+    });
+  });
+
+  slot.innerHTML = `<div class="unassigned-panel">
+    <div class="unassigned-panel-head" onclick="toggleUAPanel()">
+      <span id="uaIcon" style="font-family:var(--mono);font-size:12px;color:var(--red);transition:transform 0.25s;display:inline-block;transform:rotate(-90deg)">▼</span>
+      <span style="font-size:13px;font-weight:700;color:#fca5a5">🚨 Unassigned / Excluded Claims</span>
+      <span style="font-family:var(--mono);font-size:12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;padding:2px 10px;border-radius:12px">${totalExcluded}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto">${Object.entries(groups).map(([cat,arr])=>`${catLabel[cat]}: ${arr.length}`).join(' · ')}</span>
+    </div>
+    <div id="${panelId}" style="display:none;padding:0 18px 16px">
+      <div class="dist-table-wrap"><table class="unassigned-table">
+        <thead><tr><th>Claim ID</th><th>Reason</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table></div>
+    </div>
+  </div>`;
+}
+function toggleUAPanel() {
+  const p = document.getElementById('uaPanel');
+  const icon = document.getElementById('uaIcon');
+  if (!p) return;
+  const open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : 'block';
+  if (icon) icon.style.transform = open ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
+// ── DUPLICATE CLAIM WARNING ───────────────────────────────────────────────────
+function checkDuplicatesAcrossFiles() {
+  const slot = document.getElementById('dupeBannerSlot');
+  if (!slot) return;
+  if (state.files.length < 2) { slot.innerHTML = ''; return; }
+  const seen = {}, dupes = [];
+  state.files.forEach(f => {
+    f.rows.forEach(r => {
+      const id = String(r.ClaimID || '').trim();
+      if (!id) return;
+      if (seen[id] && !dupes.includes(id)) dupes.push(id);
+      seen[id] = true;
+    });
+  });
+  if (!dupes.length) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `<div class="dupe-banner">⚠ <strong>${dupes.length} duplicate Claim ID${dupes.length!==1?'s':''}</strong> detected across uploaded files — duplicates were removed (first occurrence kept). IDs: ${dupes.slice(0,8).map(d=>`<code style="background:rgba(245,158,11,0.15);padding:0 4px;border-radius:3px">${esc(d)}</code>`).join(' ')}${dupes.length>8?` <em>+${dupes.length-8} more</em>`:''}</div>`;
+}
+
+// ── DISTRIBUTION DIFF ─────────────────────────────────────────────────────────
+let _prevDistribution = {}; // snapshot of last run's assignment map {claimId -> agentName}
+
+function snapshotDistribution() {
+  const snap = {};
+  Object.entries(state.distribution).forEach(([agent, rows]) => {
+    rows.forEach(r => { snap[r.ClaimID] = agent; });
+  });
+  return snap;
+}
+
+function getDiffAnnotations(prevSnap) {
+  // Returns {claimId: {prev, curr}} for claims that MOVED
+  const moved = {};
+  Object.entries(state.distribution).forEach(([agent, rows]) => {
+    rows.forEach(r => {
+      const id = r.ClaimID;
+      if (prevSnap[id] && prevSnap[id] !== agent) {
+        moved[id] = { prev: prevSnap[id], curr: agent };
+      }
+    });
+  });
+  return moved;
+}
+
+// ── ABSENCE PRESETS ───────────────────────────────────────────────────────────
+const PRESET_KEY = 'qd_absence_presets_v1';
+
+function loadAbsencePresets() {
+  try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveAbsencePreset() {
+  const nameEl = document.getElementById('presetNameInput');
+  const name = (nameEl?.value || '').trim();
+  if (!name) { toast('Enter a preset name', 'error'); return; }
+  const presets = loadAbsencePresets();
+  // Save current absent list
+  const absent = state.agents.filter(a => !a.included).map(a => a.name);
+  presets[name] = absent;
+  localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+  if (nameEl) nameEl.value = '';
+  renderPresetChips();
+  toast(`Preset "${name}" saved (${absent.length} absent)`, 'success');
+}
+
+function applyAbsencePreset(name) {
+  const presets = loadAbsencePresets();
+  const absentList = presets[name];
+  if (!absentList) return;
+  state.agents.forEach(a => {
+    a.included = !absentList.includes(a.name);
+  });
+  renderRosterTable(); renderAbsentPanel(); updateAbsentBadge(); autoSaveSettingsIfExists();
+  toast(`Preset "${name}" applied — ${absentList.length} absent`, 'success');
+}
+
+function deleteAbsencePreset(name) {
+  const presets = loadAbsencePresets();
+  delete presets[name];
+  localStorage.setItem(PRESET_KEY, JSON.stringify(presets));
+  renderPresetChips();
+  toast(`Preset "${name}" deleted`, 'info');
+}
+
+function renderPresetChips() {
+  const container = document.getElementById('presetChips');
+  if (!container) return;
+  const presets = loadAbsencePresets();
+  const names = Object.keys(presets);
+  if (!names.length) {
+    container.innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:var(--muted);font-style:italic">None saved yet</span>';
+    return;
+  }
+  container.innerHTML = names.map(n =>
+    `<span style="display:inline-flex;align-items:center;gap:0;margin-right:4px">
+      <button class="preset-btn" onclick="applyAbsencePreset('${escQ(n)}')" title="Apply preset">${esc(n)}</button>
+      <button class="preset-btn del-preset" onclick="deleteAbsencePreset('${escQ(n)}')" title="Delete preset" style="border-left:none;border-radius:0 16px 16px 0;padding:4px 7px">✕</button>
+    </span>`
+  ).join('');
+}
+
+
+// ── UNIFIED COLLAPSIBLE ENGINE ────────────────────────────────────────────────
+const COLLAPSE_KEY = 'qd_collapse_state_v1';
+function loadCollapseState() {
+  try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}'); } catch { return {}; }
+}
+function saveCollapseState(key, collapsed) {
+  const s = loadCollapseState(); s[key] = collapsed;
+  localStorage.setItem(COLLAPSE_KEY, JSON.stringify(s));
+}
+function toggleCollapsible(bodyId, iconId, stateKey) {
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  if (!body) return;
+  // Strip any residual inline display style so CSS class takes full control
+  body.style.display = '';
+  const collapsed = body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', !collapsed);
+  if (icon) icon.style.transform = !collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  if (stateKey) saveCollapseState(stateKey, !collapsed);
+}
+function applyCollapseState(bodyId, iconId, stateKey, defaultCollapsed) {
+  const state = loadCollapseState();
+  const collapsed = stateKey in state ? state[stateKey] : defaultCollapsed;
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  if (!body) return;
+  // Strip any inline display:none — collapsibility is handled entirely by CSS class
+  body.style.display = '';
+  // Add collapsible-body class if not present
+  body.classList.add('collapsible-body');
+  if (collapsed) {
+    body.classList.add('collapsed');
+    if (icon) icon.style.transform = 'rotate(-90deg)';
+  } else {
+    body.classList.remove('collapsed');
+    if (icon) icon.style.transform = 'rotate(0deg)';
+  }
+}
+function initCollapseStates() {
+  applyCollapseState('rosterPanelBody',  'rosterCollapseIcon',  'roster',  true);
+  applyCollapseState('rulesPanelBody',   'rulesCollapseIcon',   'rules',   false);
+  applyCollapseState('summaryPanelBody', 'summaryCollapseIcon', 'summary', true);
+  applyCollapseState('cardsPanelBody',   'cardsCollapseIcon',   'cards',   false);
+  // Sync rules hint text
+  const rulesHint = document.getElementById('rulesCollapseIcon')?.parentElement?.querySelector('span:last-child');
+  const rulesBody = document.getElementById('rulesPanelBody');
+  if (rulesHint && rulesBody) rulesHint.textContent = rulesBody.classList.contains('collapsed') ? '(click to expand)' : '(click to collapse)';
+}
+
+// ── DISTRIBUTION SPINNER ──────────────────────────────────────────────────────
+function showSpinner() {
+  const el = document.getElementById('distSpinner');
+  if (el) el.classList.add('active');
+}
+function hideSpinner() {
+  const el = document.getElementById('distSpinner');
+  if (el) el.classList.remove('active');
+}
+
+// ── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+  // Ctrl+Enter: advance step
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    if (!document.getElementById('panel-upload').classList.contains('hidden') && !document.getElementById('btnStep1Next').disabled) {
+      goStep2();
+    } else if (!document.getElementById('panel-agents').classList.contains('hidden')) {
+      goStep3();
+    }
+    return;
+  }
+
+  // Ctrl+Shift+E: export combined
+  if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+    e.preventDefault();
+    if (!document.getElementById('panel-results').classList.contains('hidden')) {
+      wrapExport(document.querySelector('.sticky-export-bar .btn-success') || document.body, exportCombined);
+    }
+    return;
+  }
+
+  // Ctrl+Shift+R: re-run
+  if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+    e.preventDefault();
+    if (!document.getElementById('panel-results').classList.contains('hidden')) rerunDistribution();
+    return;
+  }
+
+  // Escape: close modal
+  if (e.key === 'Escape') {
+    closeRunModal();
+    return;
+  }
+
+  // ?: show shortcuts toast
+  if (e.key === '?') {
+    toast('Ctrl+Enter: advance · Ctrl+Shift+E: export · Ctrl+Shift+R: re-run · Esc: close modal', 'info');
+  }
+});
+
+// ── PROMINENT LOAD CHART ─────────────────────────────────────────────────────
+function renderProminentLoadChart(agents) {
+  const wrap = document.getElementById('loadChartProminent');
+  const bars = document.getElementById('prominentLoadBars');
+  if (!wrap || !bars) return;
+  const maxLoad = Math.max(...agents.map(a => state.distribution[a].length), 1);
+  bars.innerHTML = agents.map(a => {
+    const cnt = state.distribution[a].length;
+    const agObj = state.agents.find(x => x.name === a);
+    const cap = agObj?.cap != null ? agObj.cap : state.globalCap;
+    const pct = Math.round(cnt / maxLoad * 100);
+    const atCap = cap != null && cnt >= cap;
+    const nearCap = cap != null && cnt >= cap * 0.9 && !atCap;
+    const cls = atCap ? 'over-cap' : nearCap ? 'at-cap' : '';
+    const initials = a.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const barH = Math.max(8, Math.round(pct * 1.44)); // scale to 160px max
+    return `<div class="load-bar-col" title="${esc(a)}: ${cnt} claims${cap ? ' / cap ' + cap : ''}">
+      <div class="load-bar-num">${cnt}</div>
+      <div class="load-bar-inner ${cls}" style="height:${barH}px"></div>
+      <div class="load-bar-label">${initials}</div>
+    </div>`;
+  }).join('');
+  wrap.classList.remove('hidden');
+}
+
+// ── FILENAME PREVIEW COPY ────────────────────────────────────────────────────
+function copyFnPreview(btn) {
+  const preview = document.getElementById('fnPreview');
+  if (!preview) return;
+  navigator.clipboard.writeText(preview.textContent).then(() => {
+    btn.textContent = '✓ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⎘ Copy'; btn.classList.remove('copied'); }, 1800);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = preview.textContent; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = '✓ Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '⎘ Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+
+function initStepNavigation() {
+  document.getElementById('step1').addEventListener('click', () => {
+    if (document.getElementById('step1').classList.contains('done')) goStep1();
+  });
+  document.getElementById('step2').addEventListener('click', () => {
+    if (document.getElementById('step2').classList.contains('done') ||
+        document.getElementById('step2').classList.contains('active')) {
+      if (!document.getElementById('panel-agents').classList.contains('hidden')) return;
+      goStep2();
+    }
+  });
+}
+
+</script>
+</body>
+</html>
