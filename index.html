@@ -4610,8 +4610,9 @@ function confirmTeamChoice() {
     closeTeamChooser();
     toast('Switched to Team Yanny ✓', 'success');
   } else {
+    const idToSwitch = _tcPendingId; // capture before closeTeamChooser nulls it
     closeTeamChooser();
-    switchToProfile(_tcPendingId);
+    switchToProfile(idToSwitch);
   }
 }
 
