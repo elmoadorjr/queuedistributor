@@ -4567,6 +4567,7 @@ function _renderTeamChooser() {
 
   ids.forEach(id => {
     const p = profiles[id];
+    if (p.name === 'Team Yanny') return; // represented by the hardcoded null entry above
     const memberCount = (p.snapshot && p.snapshot.agents) ? p.snapshot.agents.length : '?';
     const isPending = _tcPendingId === id;
     html += `<button class="tc-team-btn ${isPending ? 'active-team' : ''}" onclick="_tcSelect('${id}')">
@@ -4610,7 +4611,7 @@ function confirmTeamChoice() {
     toast('Switched to Team Yanny ✓', 'success');
   } else {
     closeTeamChooser();
-    switchProfile(_tcPendingId);
+    switchToProfile(_tcPendingId);
   }
 }
 
