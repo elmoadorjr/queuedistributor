@@ -1961,7 +1961,12 @@ function confirmRunDistribution() {
   closeRunModal();
   autoSaveSettingsIfExists();
   markClean();
-  show('panel-results'); hide('panel-agents'); hide('panel-upload'); setStep(3); updateStickyBar(); checkDuplicatesAcrossFiles(); showSpinner(); setTimeout(() => { runDistribution(); hideSpinner(); }, 60);
+  show('panel-results'); hide('panel-agents'); hide('panel-upload'); setStep(3); updateStickyBar(); checkDuplicatesAcrossFiles(); showSpinner();
+  setTimeout(() => {
+    try { runDistribution(); }
+    catch(e) { console.error('Distribution error:', e); toast('Distribution error: ' + e.message, 'error'); }
+    finally { hideSpinner(); }
+  }, 60);
 }
 function setStep(n) {
   [1,2,3].forEach(i => {
@@ -3434,7 +3439,11 @@ function rerunDistribution() {
     toast('No data loaded yet', 'error'); return;
   }
   showSpinner();
-  setTimeout(() => { runDistribution(); hideSpinner(); toast('Re-run complete', 'success'); }, 60);
+  setTimeout(() => {
+    try { runDistribution(); toast('Re-run complete', 'success'); }
+    catch(e) { console.error('Distribution error:', e); toast('Distribution error: ' + e.message, 'error'); }
+    finally { hideSpinner(); }
+  }, 60);
 }
 
 // ── STICKY EXPORT BAR visibility ─────────────────────────────────────────────
