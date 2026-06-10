@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Queue Distributor v35 · EnableComp MVA</title>
+<title>Queue Distributor v36 · EnableComp MVA</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.js"></script>
@@ -193,6 +193,79 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ── TEAM PROFILE SWITCHER ──────────────────────────────────────────────── */
+  .profile-pill { display: inline-flex; align-items: center; gap: 7px; background: rgba(168,85,247,0.1); border: 1px solid rgba(168,85,247,0.3); border-radius: 20px; padding: 5px 12px 5px 10px; cursor: pointer; transition: all 0.2s; font-family: var(--mono); font-size: 10px; color: #d8b4fe; letter-spacing: 0.5px; }
+  .profile-pill:hover { background: rgba(168,85,247,0.2); border-color: rgba(168,85,247,0.5); }
+  .profile-pill-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--purple); flex-shrink: 0; box-shadow: 0 0 6px rgba(168,85,247,0.7); }
+  .profile-pill-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .profile-pill-caret { font-size: 9px; color: #a855f7; opacity: 0.7; }
+
+  /* Profile Modal Overlay */
+  #profileModal { position: fixed; inset: 0; background: rgba(5,8,16,0.82); backdrop-filter: blur(4px); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  #profileModal.hidden { display: none !important; }
+  .pm-dialog { background: var(--surface); border: 1px solid rgba(168,85,247,0.35); border-radius: 16px; width: 100%; max-width: 520px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 40px rgba(168,85,247,0.1); animation: pmSlide 0.22s ease; }
+  @keyframes pmSlide { from { opacity:0; transform:scale(0.96) translateY(10px); } to { opacity:1; transform:scale(1) translateY(0); } }
+  .pm-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface2); }
+  .pm-title { font-size: 14px; font-weight: 800; color: #d8b4fe; display: flex; align-items: center; gap: 8px; }
+  .pm-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 4px; transition: color 0.15s; }
+  .pm-close:hover { color: var(--text); }
+  .pm-body { padding: 20px 24px; max-height: 80vh; overflow-y: auto; }
+  .pm-section-label { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .pm-profile-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; max-height: 260px; overflow-y: auto; }
+  .pm-profile-row { display: flex; align-items: center; gap: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; transition: all 0.15s; cursor: pointer; }
+  .pm-profile-row:hover { border-color: var(--purple); background: rgba(168,85,247,0.07); }
+  .pm-profile-row.active { border-color: var(--purple); background: rgba(168,85,247,0.1); }
+  .pm-profile-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pm-profile-info { flex: 1; min-width: 0; }
+  .pm-profile-name { font-size: 13px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pm-profile-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .pm-profile-active-badge { font-family: var(--mono); font-size: 9px; color: var(--purple); background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); border-radius: 4px; padding: 2px 7px; letter-spacing: 0.5px; white-space: nowrap; }
+  .pm-profile-actions { display: flex; gap: 6px; }
+  .pm-btn-icon { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 13px; color: var(--muted); transition: all 0.15s; }
+  .pm-btn-icon:hover { border-color: var(--muted); color: var(--text); }
+  .pm-btn-icon.danger:hover { border-color: var(--red); color: var(--red); }
+  .pm-divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .pm-new-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pm-new-input { flex: 1; min-width: 160px; background: var(--bg); border: 1px solid rgba(168,85,247,0.3); border-radius: 8px; padding: 9px 13px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; transition: border-color 0.2s; }
+  .pm-new-input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(168,85,247,0.12); }
+  .pm-new-input::placeholder { color: var(--muted); }
+  .btn-purple { background: var(--purple); color: white; }
+  .btn-purple:hover:not(:disabled) { background: #9333ea; transform: translateY(-1px); }
+  .pm-tip { font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.6; background: rgba(168,85,247,0.05); border: 1px solid rgba(168,85,247,0.15); border-radius: 8px; padding: 10px 13px; }
+
+  /* Roster Picker inside New Profile form */
+  .pm-roster-picker { display: none; margin-top: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .pm-roster-picker.open { display: block; }
+  .pm-roster-picker-head { padding: 10px 14px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .pm-roster-picker-title { font-size: 12px; font-weight: 700; color: var(--text); }
+  .pm-roster-picker-sub { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .pm-roster-picker-actions { display: flex; gap: 6px; }
+  .pm-roster-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; padding: 12px; max-height: 240px; overflow-y: auto; }
+  .pm-agent-check { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; transition: all 0.15s; font-size: 12px; }
+  .pm-agent-check:hover { border-color: var(--purple); background: rgba(168,85,247,0.06); }
+  .pm-agent-check input { margin: 0; accent-color: var(--purple); cursor: pointer; flex-shrink: 0; }
+  .pm-agent-check.checked { border-color: var(--purple); background: rgba(168,85,247,0.1); }
+  .pm-agent-check-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .pm-agent-check-batch { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+  .pm-selected-count { font-family: var(--mono); font-size: 10px; color: var(--purple); }
+
+  /* Beginner welcome banner */
+  .welcome-banner { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(34,211,238,0.05)); border: 1px solid rgba(59,130,246,0.25); border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 14px; }
+  .welcome-banner.hidden { display: none !important; }
+  .wb-icon { font-size: 28px; flex-shrink: 0; }
+  .wb-body { flex: 1; }
+  .wb-title { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .wb-text { font-size: 12px; color: var(--muted); line-height: 1.65; }
+  .wb-text strong { color: var(--text); }
+  .wb-dismiss { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 10px; font-family: var(--sans); font-size: 11px; cursor: pointer; white-space: nowrap; margin-top: 2px; flex-shrink: 0; transition: all 0.15s; }
+  .wb-dismiss:hover { border-color: var(--text); color: var(--text); }
+
+  /* Profile empty-state helper text */
+  .pm-empty-state { text-align: center; padding: 28px 20px; }
+  .pm-empty-icon { font-size: 32px; margin-bottom: 8px; }
+  .pm-empty-title { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .pm-empty-text { font-size: 12px; color: var(--muted); line-height: 1.6; max-width: 320px; margin: 0 auto; }
 
   /* Unified Roster Table */
   .roster-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -753,13 +826,18 @@
       <div class="logo-icon">⚖️</div>
       <div>
         <div class="logo-text">Queue Distributor</div>
-        <div class="logo-sub">EnableComp · MVA Team · v35</div>
+        <div class="logo-sub" id="logoSub">EnableComp · MVA Team · v35</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button id="profilePill" class="profile-pill" onclick="openProfileModal()" title="Switch team profile">
+        <span class="profile-pill-dot"></span>
+        <span class="profile-pill-name">Default Team</span>
+        <span class="profile-pill-caret">▾</span>
+      </button>
       <div class="header-badge">RELATED · PROVIDER-MATCHED</div>
       <div id="currentTime" style="font-family:var(--mono);font-size:10px;color:var(--accent2);background:var(--surface2);border:1px solid rgba(34,211,238,0.2);padding:5px 12px;border-radius:20px;letter-spacing:1px;text-align:center" title="PH local time · US Eastern offset"></div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:5px 12px;border-radius:20px;letter-spacing:1px">v30</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:5px 12px;border-radius:20px;letter-spacing:1px">v36</div>
     </div>
   </header>
 
@@ -767,6 +845,20 @@
     <div class="step active" id="step1" title="Upload Alpha Lists"><div class="step-num">STEP 01</div><div class="step-title">Upload Alpha Lists</div><div class="step-meta" id="step1-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
     <div class="step" id="step2" title="Configure Agents &amp; Rules"><div class="step-num">STEP 02</div><div class="step-title">Configure Agents &amp; Rules</div><div class="step-meta" id="step2-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
     <div class="step" id="step3" title="Distribute &amp; Export"><div class="step-num">STEP 03</div><div class="step-title">Distribute &amp; Export</div><div class="step-meta" id="step3-meta"></div><div class="step-status"></div><div class="step-check">✓</div></div>
+  </div>
+
+  <!-- Welcome Banner (first-time friendly) -->
+  <div class="welcome-banner" id="welcomeBanner">
+    <div class="wb-icon">👋</div>
+    <div class="wb-body">
+      <div class="wb-title">New here? Here's all you need to know.</div>
+      <div class="wb-text">
+        This tool <strong>automatically splits your claim queue</strong> across your team — fairly, by status, and keeping related patient claims together.
+        Just follow the 3 steps above: <strong>upload your file → mark absent agents → click Run</strong>.
+        That's it! The tool handles the math. For daily use, the only thing you usually change is who's absent.
+      </div>
+    </div>
+    <button class="wb-dismiss" onclick="dismissWelcomeBanner()">Got it ✓</button>
   </div>
 
   <!-- STEP 1 -->
@@ -1665,6 +1757,7 @@ document.addEventListener('DOMContentLoaded', () => {
   updateFnPreview();
   initCollapseStates();
   initStepNavigation();
+  initProfileSystem();
 });
 
 // ── FILE UPLOAD ───────────────────────────────────────────────────────────────
@@ -3749,6 +3842,7 @@ document.addEventListener('keydown', e => {
   // Escape: close modal
   if (e.key === 'Escape') {
     closeRunModal();
+    closeProfileModal();
     return;
   }
 
@@ -3815,6 +3909,755 @@ function initStepNavigation() {
   });
 }
 
+// ── TEAM PROFILE SYSTEM ───────────────────────────────────────────────────────
+
+const PROFILES_KEY = 'queuedist_profiles_v1';
+const ACTIVE_PROFILE_KEY = 'queuedist_active_profile_v1';
+const WELCOME_DISMISSED_KEY = 'qd_welcome_dismissed';
+const PROFILE_COLORS = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#22d3ee','#f97316','#6366f1','#14b8a6'];
+
+// ── MASTER AGENT ROSTER ──────────────────────────────────────────────────────
+// Seed list — these are always present as a base. Do NOT remove names here;
+// use the "Manage Roster" UI instead. Extra agents added via the UI are stored
+// in localStorage and merged in by getMasterAgentList().
+const MASTER_AGENT_LIST_SEED = [
+  { name: 'David Tejada',       batch: 'Batch 2' },
+  { name: 'Micha Kit Gallego',  batch: 'Batch 2' },
+  { name: 'Elmo Ador Jr',       batch: 'Batch 2' },
+  { name: 'Clark Panaguiton',   batch: 'Batch 2' },
+  { name: 'Kate Perez',         batch: 'Batch 2' },
+  { name: 'Jherana Magno',      batch: 'Batch 2' },
+  { name: 'Sel Dolor',          batch: 'Batch 2' },
+  { name: 'Georlyn Caguan',     batch: 'Batch 2' },
+  { name: 'Raynier Hortillosa', batch: 'Batch 2' },
+  { name: 'Prudelyn Labro',     batch: 'Batch 2' },
+  { name: 'Danica De La Peña',  batch: 'Batch 2' },
+  { name: 'Ryden Cardinal',     batch: 'Batch 2' },
+  { name: 'Jhon Herrera',       batch: 'Batch 2' },
+  { name: 'Lorie Gutierrez',    batch: 'Batch 2' },
+  { name: 'Lara Depiño',        batch: 'Batch 2' },
+  { name: 'Regina Corvera',     batch: 'Batch 3' },
+  { name: 'Mark Tolentino',     batch: 'Batch 3' },
+  { name: 'Shane Ian Atad',     batch: 'Batch 3' },
+  { name: 'Addy Palawan',       batch: 'Batch 3' },
+  { name: 'Jonathan Dula',      batch: 'Batch 3' },
+];
+
+const MASTER_ROSTER_KEY = 'qd_master_roster_v1'; // localStorage key for extra/removed agents
+
+// Returns the live master list: seed merged with localStorage additions, minus removals.
+function getMasterAgentList() {
+  let extra = [], removed = [];
+  try {
+    const raw = localStorage.getItem(MASTER_ROSTER_KEY);
+    if (raw) { const d = JSON.parse(raw); extra = d.extra || []; removed = d.removed || []; }
+  } catch(e) {}
+  const removedSet = new Set(removed);
+  const base = MASTER_AGENT_LIST_SEED.filter(a => !removedSet.has(a.name));
+  const baseNames = new Set(base.map(a => a.name));
+  const extraFiltered = extra.filter(a => !removedSet.has(a.name) && !baseNames.has(a.name));
+  return [...base, ...extraFiltered];
+}
+
+// Add a new agent to the persistent master list
+function masterRosterAdd(name, batch) {
+  name = name.trim();
+  if (!name) return false;
+  const current = getMasterAgentList();
+  if (current.find(a => a.name.toLowerCase() === name.toLowerCase())) return false; // dupe
+  let data = { extra: [], removed: [] };
+  try { const raw = localStorage.getItem(MASTER_ROSTER_KEY); if (raw) data = JSON.parse(raw); } catch(e) {}
+  data.extra = data.extra || [];
+  data.removed = data.removed || [];
+  // Un-remove if previously removed
+  data.removed = data.removed.filter(r => r.toLowerCase() !== name.toLowerCase());
+  data.extra.push({ name, batch: batch || '' });
+  localStorage.setItem(MASTER_ROSTER_KEY, JSON.stringify(data));
+  return true;
+}
+
+// Remove an agent from the persistent master list (marks as removed)
+function masterRosterRemove(name) {
+  let data = { extra: [], removed: [] };
+  try { const raw = localStorage.getItem(MASTER_ROSTER_KEY); if (raw) data = JSON.parse(raw); } catch(e) {}
+  data.removed = data.removed || [];
+  data.extra = data.extra || [];
+  if (!data.removed.includes(name)) data.removed.push(name);
+  // Also remove from extra if it was added there
+  data.extra = data.extra.filter(a => a.name !== name);
+  localStorage.setItem(MASTER_ROSTER_KEY, JSON.stringify(data));
+}
+
+// Backward compat alias — all old references to MASTER_AGENT_LIST now call this
+// (replaced inline below, but kept as safety net)
+const MASTER_AGENT_LIST = getMasterAgentList();
+
+let _activeProfileId = null;
+
+function _genProfileId() {
+  return 'prof_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function getAllProfiles() {
+  try {
+    const raw = localStorage.getItem(PROFILES_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  return {};
+}
+
+function saveAllProfiles(profiles) {
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+}
+
+function _snapshotCurrentState() {
+  return {
+    agents: state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' })),
+    globalCap: state.globalCap ?? null,
+    statusCol: document.getElementById('statusCol')?.value || 'Status',
+    batch2Statuses: Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value),
+    batch3Statuses: Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value),
+    provAssignments: JSON.parse(JSON.stringify(provAssignments)),
+    excludeBilingual: document.getElementById('excludeBilingual')?.value || 'yes',
+    relatedPct: state.relatedPct ?? 100,
+  };
+}
+
+function _applySnapshot(snapshot) {
+  if (!snapshot) return;
+  if (Array.isArray(snapshot.agents) && snapshot.agents.length) {
+    state.agents = snapshot.agents.map((a, i) => ({
+      name: a.name, color: a.color || COLORS[i % COLORS.length],
+      included: a.included !== false, cap: a.cap ?? null, batch: a.batch || '', role: a.role || 'TM'
+    }));
+  } else {
+    state.agents = DEFAULT_ROSTER.map((a, i) => ({
+      name: a.name, color: COLORS[i % COLORS.length], included: true, cap: null, batch: a.batch || '', role: a.role || 'TM'
+    }));
+  }
+  state.globalCap = snapshot.globalCap ?? null;
+  const gcInp = document.getElementById('globalCapInput');
+  if (gcInp) gcInp.value = snapshot.globalCap != null ? snapshot.globalCap : '';
+  const scEl = document.getElementById('statusCol');
+  if (scEl && snapshot.statusCol) scEl.value = snapshot.statusCol;
+  if (Array.isArray(snapshot.batch2Statuses)) {
+    document.querySelectorAll('#batch2Checkboxes input').forEach(cb => { cb.checked = snapshot.batch2Statuses.includes(cb.value); });
+  }
+  if (Array.isArray(snapshot.batch3Statuses)) {
+    document.querySelectorAll('#batch3Checkboxes input').forEach(cb => { cb.checked = snapshot.batch3Statuses.includes(cb.value); });
+  }
+  provAssignments = (snapshot.provAssignments && typeof snapshot.provAssignments === 'object')
+    ? JSON.parse(JSON.stringify(snapshot.provAssignments)) : {};
+  const blEl = document.getElementById('excludeBilingual');
+  if (blEl && snapshot.excludeBilingual) blEl.value = snapshot.excludeBilingual;
+  if (snapshot.relatedPct != null) {
+    state.relatedPct = snapshot.relatedPct;
+    const slid = document.getElementById('relatedPctSlider');
+    const badge = document.getElementById('relatedPctBadge');
+    if (slid) slid.value = snapshot.relatedPct;
+    if (badge) badge.textContent = snapshot.relatedPct + '%';
+  }
+  renderRosterTable();
+  renderAbsentPanel();
+  updateAbsentBadge();
+}
+
+function saveCurrentProfile() {
+  if (!_activeProfileId) return;
+  const profiles = getAllProfiles();
+  if (!profiles[_activeProfileId]) return;
+  profiles[_activeProfileId].snapshot = _snapshotCurrentState();
+  profiles[_activeProfileId].savedAt = Date.now();
+  saveAllProfiles(profiles);
+}
+
+const _origSaveSettings = saveSettings;
+function saveSettings() {
+  _origSaveSettings();
+  saveCurrentProfile();
+  _updateProfilePill();
+}
+
+function _updateProfilePill() {
+  const pill = document.getElementById('profilePill');
+  const sub = document.getElementById('logoSub');
+  if (!_activeProfileId) {
+    if (pill) pill.innerHTML = '<span class="profile-pill-dot"></span><span class="profile-pill-name">Default Team</span><span class="profile-pill-caret">▾</span>';
+    if (sub) sub.textContent = 'ENABLECOMP · MVA TEAM · v36';
+    return;
+  }
+  const profiles = getAllProfiles();
+  const p = profiles[_activeProfileId];
+  if (!p) return;
+  if (pill) {
+    pill.innerHTML = '<span class="profile-pill-dot" style="background:' + (p.color||'var(--purple)') + ';box-shadow:0 0 6px ' + (p.color||'var(--purple)') + '88"></span><span class="profile-pill-name">' + esc(p.name) + '</span><span class="profile-pill-caret">▾</span>';
+  }
+  if (sub) sub.textContent = 'ENABLECOMP · ' + p.name.toUpperCase() + ' · v36';
+}
+
+function openProfileModal() {
+  _editingProfileId = null;
+  renderProfileModal();
+  resetRosterPicker();
+  // Reset name input in case edit mode left it dirty
+  const nameInp = document.getElementById('pmNewName');
+  if (nameInp) { nameInp.value = ''; nameInp.disabled = false; }
+  const createBtn = document.getElementById('pmCreateBtn');
+  if (createBtn) { createBtn.textContent = '✓ Create Team'; createBtn.onclick = createNewProfile; }
+  document.getElementById('profileModal').classList.remove('hidden');
+}
+
+function closeProfileModal() {
+  document.getElementById('profileModal').classList.add('hidden');
+}
+
+function renderProfileModal() {
+  const profiles = getAllProfiles();
+  const ids = Object.keys(profiles).sort((a, b) => (profiles[a].createdAt || 0) - (profiles[b].createdAt || 0));
+
+  if (ids.length === 0) {
+    document.getElementById('pmProfileList').innerHTML = '<div class="pm-empty-state"><div class="pm-empty-icon">🗂️</div><div class="pm-empty-title">No other teams yet</div><div class="pm-empty-text">You\'re on the <strong>Default Team</strong> right now. Use the form below to set up a separate workspace for another team — their roster and settings stay completely independent.</div></div>';
+    return;
+  }
+
+  document.getElementById('pmProfileList').innerHTML = ids.map(id => {
+    const p = profiles[id];
+    const isActive = id === _activeProfileId;
+    const agentCount = p.snapshot?.agents?.length ?? 0;
+    const savedAgo = p.savedAt ? _timeAgo(p.savedAt) : 'not yet saved';
+    return '<div class="pm-profile-row ' + (isActive ? 'active' : '') + '" onclick="switchToProfile(\'' + id + '\')">' +
+      '<div class="pm-profile-color" style="background:' + (p.color||'var(--purple)') + '"></div>' +
+      '<div class="pm-profile-info">' +
+        '<div class="pm-profile-name">' + esc(p.name) + '</div>' +
+        '<div class="pm-profile-meta">' + agentCount + ' agent' + (agentCount!==1?'s':'') + ' · ' + (isActive ? '<strong style="color:var(--green)">currently active</strong>' : 'last saved ' + savedAgo) + '</div>' +
+      '</div>' +
+      (isActive
+        ? '<span class="pm-profile-active-badge">● YOU\'RE HERE</span>'
+        : '<button class="btn btn-secondary btn-sm" style="font-size:11px;padding:5px 12px;white-space:nowrap" onclick="event.stopPropagation();switchToProfile(\'' + id + '\')">Switch →</button>') +
+      '<div class="pm-profile-actions" onclick="event.stopPropagation()">' +
+        '<button class="pm-btn-icon" title="Edit team members" onclick="editProfileMembers(\'' + id + '\')">👥</button>' +
+        '<button class="pm-btn-icon" title="Save current settings to this profile" onclick="saveToProfile(\'' + id + '\')">💾</button>' +
+        (!isActive ? '<button class="pm-btn-icon danger" title="Delete this team" onclick="deleteProfile(\'' + id + '\')">🗑</button>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+// ── ROSTER PICKER ─────────────────────────────────────────────────────────────
+
+function onProfileNameInput() {
+  const val = (document.getElementById('pmNewName')?.value || '').trim();
+  document.getElementById('pmPickRosterBtn').disabled = !val;
+}
+
+function openRosterPicker(preselectedNames) {
+  const name = (document.getElementById('pmNewName')?.value || '').trim();
+  if (!name) { toast('Enter a team name first', 'error'); return; }
+  const masterList = getMasterAgentList();
+  const presel = preselectedNames ? new Set(preselectedNames) : null;
+  const grid = document.getElementById('pmRosterGrid');
+  grid.innerHTML = masterList.map((ag, i) => {
+    const isChecked = presel ? presel.has(ag.name) : true;
+    return '<label class="pm-agent-check' + (isChecked ? ' checked' : '') + '" id="pmac-' + i + '">' +
+      '<input type="checkbox" id="pmacchk-' + i + '" ' + (isChecked ? 'checked' : '') + ' onchange="pmUpdateCount();document.getElementById(\'pmac-\'+' + i + ').classList.toggle(\'checked\',this.checked)">' +
+      '<span class="pm-agent-check-name">' + esc(ag.name) + '</span>' +
+      '<span class="pm-agent-check-batch">' + (ag.batch || '') + '</span>' +
+      '</label>';
+  }).join('');
+  pmUpdateCount();
+  document.getElementById('pmRosterPicker').classList.add('open');
+  document.getElementById('pmPickRosterBtn').style.display = 'none';
+}
+
+function cancelRosterPicker() { resetRosterPicker(); }
+
+function resetRosterPicker() {
+  document.getElementById('pmRosterPicker').classList.remove('open');
+  const btn = document.getElementById('pmPickRosterBtn');
+  if (btn) {
+    btn.style.display = '';
+    btn.disabled = !(document.getElementById('pmNewName')?.value || '').trim();
+  }
+}
+
+function pmUpdateCount() {
+  const masterList = getMasterAgentList();
+  const checked = masterList.filter((_, i) => document.getElementById('pmacchk-' + i)?.checked).length;
+  const el = document.getElementById('pmSelectedCount');
+  if (el) el.textContent = checked + ' selected';
+  const createBtn = document.getElementById('pmCreateBtn');
+  if (createBtn) createBtn.disabled = checked === 0;
+}
+
+function pmSelectAll(checked) {
+  const masterList = getMasterAgentList();
+  masterList.forEach((_, i) => {
+    const chk = document.getElementById('pmacchk-' + i);
+    const lbl = document.getElementById('pmac-' + i);
+    if (chk) chk.checked = checked;
+    if (lbl) lbl.classList.toggle('checked', checked);
+  });
+  pmUpdateCount();
+}
+
+// ── CREATE / SWITCH / DELETE ──────────────────────────────────────────────────
+
+function createNewProfile() {
+  const inp = document.getElementById('pmNewName');
+  const name = (inp?.value || '').trim();
+  if (!name) { inp?.focus(); toast('Enter a team name first', 'error'); return; }
+
+  const masterList = getMasterAgentList();
+  const selectedAgents = masterList.filter((_, i) => document.getElementById('pmacchk-' + i)?.checked);
+  if (selectedAgents.length === 0) { toast('Select at least one team member', 'error'); return; }
+
+  saveCurrentProfile();
+
+  const profiles = getAllProfiles();
+  const id = _genProfileId();
+  const color = PROFILE_COLORS[Object.keys(profiles).length % PROFILE_COLORS.length];
+
+  const agentObjs = selectedAgents.map((ag, i) => ({
+    name: ag.name, color: COLORS[i % COLORS.length],
+    included: true, cap: null, batch: ag.batch || '', role: 'TM'
+  }));
+
+  const provSnap = {};
+  selectedAgents.forEach(ag => {
+    if (DEFAULT_PROV_ASSIGNMENTS[ag.name]) provSnap[ag.name] = DEFAULT_PROV_ASSIGNMENTS[ag.name];
+  });
+
+  profiles[id] = {
+    id, name, color,
+    createdAt: Date.now(), savedAt: Date.now(),
+    snapshot: {
+      agents: agentObjs, globalCap: null, statusCol: 'Status',
+      batch2Statuses: ['Bill Filed','Bill POR','Commercial Bill Filed','Patient Pursuit','EOB Requested'],
+      batch3Statuses: ['Bill Filed','Bill POR','Commercial Bill Filed','Patient Pursuit','EOB Requested','Validation Pending - Level 1'],
+      provAssignments: provSnap, excludeBilingual: 'yes', relatedPct: 100,
+    }
+  };
+  saveAllProfiles(profiles);
+
+  _activeProfileId = id;
+  localStorage.setItem(ACTIVE_PROFILE_KEY, id);
+  _applySnapshot(profiles[id].snapshot);
+  provAssignments = provSnap;
+  updateRosterBadge(true);
+
+  inp.value = '';
+  resetRosterPicker();
+  _updateProfilePill();
+  renderProfileModal();
+  toast('🎉 "' + name + '" created with ' + agentObjs.length + ' agents!', 'success');
+  closeProfileModal();
+  markDirty();
+}
+
+function switchToProfile(id) {
+  if (id === _activeProfileId) { closeProfileModal(); return; }
+  saveCurrentProfile();
+  const profiles = getAllProfiles();
+  const p = profiles[id];
+  if (!p) return;
+  _activeProfileId = id;
+  localStorage.setItem(ACTIVE_PROFILE_KEY, id);
+  state.files = []; state.allRows = []; state.distribution = {}; state.groups = {};
+  state.unassignedReasons = {}; state.priorRelatedCounts = {};
+  document.getElementById('fileList').innerHTML = '';
+  if (p.snapshot) {
+    _applySnapshot(p.snapshot);
+    provAssignments = p.snapshot.provAssignments ? JSON.parse(JSON.stringify(p.snapshot.provAssignments)) : {};
+    updateRosterBadge(true);
+  } else {
+    state.agents = DEFAULT_ROSTER.map((a, i) => ({
+      name: a.name, color: COLORS[i % COLORS.length], included: true, cap: null, batch: a.batch || '', role: a.role || 'TM'
+    }));
+    provAssignments = {};
+    renderRosterTable();
+    updateRosterBadge(false);
+  }
+  _updateProfilePill();
+  closeProfileModal();
+  toast('Switched to "' + p.name + '" ✓', 'success');
+}
+
+function saveToProfile(id) {
+  if (id !== _activeProfileId) { toast('Switch to this team first before saving', 'error'); return; }
+  saveCurrentProfile();
+  toast('✓ Saved "' + getAllProfiles()[id]?.name + '"', 'success');
+  renderProfileModal();
+}
+
+function deleteProfile(id) {
+  const profiles = getAllProfiles();
+  const p = profiles[id];
+  if (!p) return;
+  if (!confirm('Delete the "' + p.name + '" profile? This can\'t be undone.')) return;
+  delete profiles[id];
+  saveAllProfiles(profiles);
+  renderProfileModal();
+  toast('Deleted "' + p.name + '"', 'info');
+}
+
+function initProfileSystem() {
+  const savedActive = localStorage.getItem(ACTIVE_PROFILE_KEY);
+  const profiles = getAllProfiles();
+  _activeProfileId = (savedActive && profiles[savedActive]) ? savedActive : null;
+  _updateProfilePill();
+  if (localStorage.getItem(WELCOME_DISMISSED_KEY)) {
+    const banner = document.getElementById('welcomeBanner');
+    if (banner) banner.classList.add('hidden');
+  }
+}
+
+function dismissWelcomeBanner() {
+  localStorage.setItem(WELCOME_DISMISSED_KEY, '1');
+  const banner = document.getElementById('welcomeBanner');
+  if (banner) banner.classList.add('hidden');
+}
+
+// ── MANAGE MASTER ROSTER ─────────────────────────────────────────────────────
+
+function toggleManageRoster() {
+  const sec = document.getElementById('manageRosterSection');
+  const icon = document.getElementById('manageRosterToggleIcon');
+  if (!sec) return;
+  const isOpen = sec.style.display !== 'none';
+  sec.style.display = isOpen ? 'none' : 'block';
+  if (icon) icon.textContent = isOpen ? '▶ show' : '▼ hide';
+  if (!isOpen) renderMRRosterList();
+}
+
+function renderMRRosterList() {
+  const list = document.getElementById('mrRosterList');
+  if (!list) return;
+  const master = getMasterAgentList();
+  if (!master.length) { list.innerHTML = '<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px">No agents in roster</div>'; return; }
+  list.innerHTML = master.map(ag => {
+    const isCustom = !MASTER_AGENT_LIST_SEED.find(s => s.name === ag.name);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid rgba(30,37,53,0.5)">
+      <span style="flex:1;font-size:12px;font-weight:600">${esc(ag.name)}</span>
+      <span style="font-family:var(--mono);font-size:9px;color:${ag.batch==='Batch 2'?'#d8b4fe':ag.batch==='Batch 3'?'#67e8f9':'var(--muted)'};background:${ag.batch?'rgba(168,85,247,0.08)':'transparent'};padding:2px 6px;border-radius:4px">${ag.batch||'—'}</span>
+      ${isCustom ? '<span style="font-family:var(--mono);font-size:9px;color:var(--green);background:rgba(16,185,129,0.1);padding:2px 6px;border-radius:4px">ADDED</span>' : ''}
+      <button class="pm-btn-icon danger" onclick="mrRemoveMember(\'${escQ(ag.name)}\')" title="Remove from roster">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function mrAddMember() {
+  const name = (document.getElementById('mrNewName')?.value || '').trim();
+  const batch = document.getElementById('mrNewBatch')?.value || '';
+  if (!name) { toast('Enter a name first', 'error'); return; }
+  if (masterRosterAdd(name, batch)) {
+    document.getElementById('mrNewName').value = '';
+    document.getElementById('mrNewBatch').value = '';
+    renderMRRosterList();
+    toast(`"${name}" added to master roster`, 'success');
+  } else {
+    toast(`"${name}" already exists in the roster`, 'error');
+  }
+}
+
+function mrRemoveMember(name) {
+  // Check if this person is on any active team
+  const profiles = getAllProfiles();
+  const teamsWithMember = Object.values(profiles).filter(p => p.snapshot?.agents?.some(a => a.name === name)).map(p => p.name);
+  let msg = `Remove "${name}" from the master roster?`;
+  if (teamsWithMember.length) msg += `\n\nNote: They are still on team(s): ${teamsWithMember.join(', ')}. Removing here won't affect existing teams.`;
+  if (!confirm(msg)) return;
+  masterRosterRemove(name);
+  renderMRRosterList();
+  toast(`"${name}" removed from master roster`, 'info');
+}
+
+// ── ADD MEMBER INLINE (inside roster picker when creating a new team) ─────────
+
+function pmAddMemberInline() {
+  const name = (document.getElementById('pmAddMemberName')?.value || '').trim();
+  const batch = document.getElementById('pmAddMemberBatch')?.value || '';
+  if (!name) { toast('Enter a name', 'error'); return; }
+  if (masterRosterAdd(name, batch)) {
+    document.getElementById('pmAddMemberName').value = '';
+    // Re-render picker with new member pre-checked
+    const currentChecked = [];
+    const masterBefore = getMasterAgentList();
+    masterBefore.slice(0, masterBefore.length - 1).forEach((ag, i) => {
+      if (document.getElementById('pmacchk-' + i)?.checked) currentChecked.push(ag.name);
+    });
+    currentChecked.push(name); // new member auto-checked
+    openRosterPicker(currentChecked);
+    toast(`"${name}" added and checked`, 'success');
+  } else {
+    // Already exists — just check them if in picker
+    const master = getMasterAgentList();
+    const idx = master.findIndex(a => a.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) {
+      const chk = document.getElementById('pmacchk-' + idx);
+      if (chk) { chk.checked = true; document.getElementById('pmac-' + idx)?.classList.add('checked'); pmUpdateCount(); }
+    }
+    toast(`"${name}" already in roster — checked them`, 'info');
+    document.getElementById('pmAddMemberName').value = '';
+  }
+}
+
+// ── EDIT TEAM MEMBERS (open roster picker for existing profile) ───────────────
+
+function editProfileMembers(id) {
+  const profiles = getAllProfiles();
+  const p = profiles[id];
+  if (!p) return;
+  // Store the profile id being edited
+  _editingProfileId = id;
+  // Populate name input
+  const nameInp = document.getElementById('pmNewName');
+  if (nameInp) { nameInp.value = p.name; nameInp.disabled = true; }
+  const btn = document.getElementById('pmPickRosterBtn');
+  if (btn) { btn.style.display = 'none'; }
+  // Change create button to "Save Changes"
+  const createBtn = document.getElementById('pmCreateBtn');
+  if (createBtn) {
+    createBtn.textContent = '✓ Save Members';
+    createBtn.onclick = saveEditedProfileMembers;
+  }
+  const cancelBtn = document.querySelector('#pmRosterPicker .btn.btn-secondary');
+  if (cancelBtn) cancelBtn.onclick = cancelEditProfileMembers;
+  // Pre-select current members
+  const currentNames = (p.snapshot?.agents || []).map(a => a.name);
+  openRosterPicker(currentNames);
+}
+
+let _editingProfileId = null;
+
+function saveEditedProfileMembers() {
+  const id = _editingProfileId;
+  if (!id) return;
+  const profiles = getAllProfiles();
+  const p = profiles[id];
+  if (!p) return;
+
+  const masterList = getMasterAgentList();
+  const selectedAgents = masterList.filter((_, i) => document.getElementById('pmacchk-' + i)?.checked);
+  if (selectedAgents.length === 0) { toast('Select at least one team member', 'error'); return; }
+
+  // Merge: keep existing agent settings for agents still on team, add new ones fresh
+  const existingAgentMap = {};
+  (p.snapshot?.agents || []).forEach(a => { existingAgentMap[a.name] = a; });
+
+  const newAgents = selectedAgents.map((ag, i) => {
+    if (existingAgentMap[ag.name]) return existingAgentMap[ag.name];
+    return { name: ag.name, color: COLORS[i % COLORS.length], included: true, cap: null, batch: ag.batch || '', role: 'TM' };
+  });
+
+  // Also update provAssignments: keep for remaining agents
+  const newProvSnap = {};
+  selectedAgents.forEach(ag => {
+    if (p.snapshot?.provAssignments?.[ag.name]) newProvSnap[ag.name] = p.snapshot.provAssignments[ag.name];
+    else if (DEFAULT_PROV_ASSIGNMENTS[ag.name]) newProvSnap[ag.name] = DEFAULT_PROV_ASSIGNMENTS[ag.name];
+  });
+
+  profiles[id].snapshot = { ...(p.snapshot || {}), agents: newAgents, provAssignments: newProvSnap };
+  profiles[id].savedAt = Date.now();
+  saveAllProfiles(profiles);
+
+  // If currently active profile, apply immediately
+  if (id === _activeProfileId) {
+    _applySnapshot(profiles[id].snapshot);
+    provAssignments = newProvSnap;
+    updateRosterBadge(true);
+  }
+
+  cancelEditProfileMembers();
+  renderProfileModal();
+  toast(`✓ Team members updated for "${p.name}"`, 'success');
+}
+
+function cancelEditProfileMembers() {
+  _editingProfileId = null;
+  const nameInp = document.getElementById('pmNewName');
+  if (nameInp) { nameInp.value = ''; nameInp.disabled = false; }
+  const createBtn = document.getElementById('pmCreateBtn');
+  if (createBtn) {
+    createBtn.textContent = '✓ Create Team';
+    createBtn.onclick = createNewProfile;
+  }
+  const cancelBtn = document.querySelector('#pmRosterPicker .btn.btn-secondary');
+  if (cancelBtn) cancelBtn.onclick = cancelRosterPicker;
+  resetRosterPicker();
+}
+
+// ── PROFILE EXPORT / IMPORT ───────────────────────────────────────────────────
+
+function exportProfiles() {
+  const profiles = getAllProfiles();
+  const masterData = (() => { try { return JSON.parse(localStorage.getItem(MASTER_ROSTER_KEY) || '{}'); } catch(e) { return {}; } })();
+  const payload = {
+    _meta: { tool: 'QueueDistributor', version: 'v36', exportedAt: new Date().toISOString() },
+    profiles,
+    masterRoster: masterData
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'QD_Teams_Backup_' + new Date().toISOString().split('T')[0] + '.json';
+  a.click();
+  toast('Teams exported as JSON backup', 'success');
+}
+
+function importProfiles() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json';
+  inp.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.profiles) { toast('Invalid backup file — no profiles found', 'error'); return; }
+        const existing = getAllProfiles();
+        const incoming = data.profiles;
+        const incomingCount = Object.keys(incoming).length;
+        const conflicts = Object.keys(incoming).filter(id => existing[id]);
+        let msg = `Import ${incomingCount} team(s) from "${file.name}"?`;
+        if (conflicts.length) msg += `\n\n${conflicts.length} team(s) have matching IDs and will be overwritten.`;
+        if (!confirm(msg)) return;
+        const merged = { ...existing, ...incoming };
+        saveAllProfiles(merged);
+        // Also restore master roster additions if present
+        if (data.masterRoster) {
+          localStorage.setItem(MASTER_ROSTER_KEY, JSON.stringify(data.masterRoster));
+        }
+        renderProfileModal();
+        _updateProfilePill();
+        toast(`✓ Imported ${incomingCount} team(s) successfully`, 'success');
+      } catch(err) {
+        toast('Failed to parse backup file: ' + err.message, 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
 </script>
+
+<!-- ── TEAM PROFILE MODAL ──────────────────────────────────────────────────── -->
+<div id="profileModal" class="hidden" onclick="if(event.target===this)closeProfileModal()">
+  <div class="pm-dialog" style="max-width:560px">
+    <div class="pm-header">
+      <div class="pm-title">🏢 Team Profiles
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400;margin-left:8px;letter-spacing:1px">SWITCH TEAMS</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <button class="pm-btn-icon" onclick="importProfiles()" title="Import teams from JSON backup" style="font-size:11px;padding:4px 9px">📥 Import</button>
+        <button class="pm-btn-icon" onclick="exportProfiles()" title="Export all teams as JSON backup" style="font-size:11px;padding:4px 9px">📤 Export</button>
+        <button class="pm-close" onclick="closeProfileModal()">✕</button>
+      </div>
+    </div>
+    <div class="pm-body">
+
+      <!-- What is this? explainer -->
+      <div style="background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.2);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.65">
+        💡 <strong style="color:var(--text)">What are profiles?</strong>
+        Each profile is a separate team setup — its own agents, caps, and provider rules.
+        Switching profiles is instant and saves your current setup automatically.
+        Think of it like different "workspaces" for different teams.
+      </div>
+
+      <div class="pm-section-label">Your Teams</div>
+      <div class="pm-profile-list" id="pmProfileList">
+        <div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">Loading…</div>
+      </div>
+
+      <div class="pm-divider"></div>
+
+      <!-- Create New Profile -->
+      <div class="pm-section-label">➕ Add a New Team</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+        Give the team a name, then check off who's on it. You can always add or remove agents later.
+      </div>
+      <div class="pm-new-form">
+        <input class="pm-new-input" id="pmNewName" type="text" placeholder="e.g. AR Team, Batch 4, Collections…"
+          maxlength="48" oninput="onProfileNameInput()" onkeydown="if(event.key==='Enter'&&this.value.trim())openRosterPicker()">
+        <button class="btn btn-secondary btn-sm" id="pmPickRosterBtn" onclick="openRosterPicker()" disabled>
+          👥 Pick Members
+        </button>
+      </div>
+
+      <!-- Roster Picker (shown after typing a name) -->
+      <div class="pm-roster-picker" id="pmRosterPicker">
+        <div class="pm-roster-picker-head">
+          <div>
+            <div class="pm-roster-picker-title">Who's on this team?</div>
+            <div class="pm-roster-picker-sub">Check everyone who belongs to this team</div>
+          </div>
+          <div class="pm-roster-picker-actions">
+            <span class="pm-selected-count" id="pmSelectedCount">0 selected</span>
+            <button class="pm-btn-icon" onclick="pmSelectAll(true)" title="Select all">All</button>
+            <button class="pm-btn-icon" onclick="pmSelectAll(false)" title="Clear all">None</button>
+          </div>
+        </div>
+        <div class="pm-roster-picker-grid" id="pmRosterGrid"></div>
+        <!-- ── Add new member inline ── -->
+        <div style="padding:8px 14px;border-top:1px solid var(--border);background:rgba(59,130,246,0.03);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;white-space:nowrap">➕ NEW HIRE</span>
+          <input id="pmAddMemberName" class="pm-new-input" type="text" placeholder="Full name…" maxlength="60" style="flex:2;min-width:120px;font-size:12px;padding:6px 10px">
+          <select id="pmAddMemberBatch" class="input-text" style="width:96px;font-size:12px;padding:6px 8px;background:var(--bg);border-color:rgba(59,130,246,0.3)">
+            <option value="">No Batch</option>
+            <option value="Batch 2">Batch 2</option>
+            <option value="Batch 3">Batch 3</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="pmAddMemberInline()" style="font-size:11px;white-space:nowrap">+ Add to Roster</button>
+        </div>
+        <div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="cancelRosterPicker()">Cancel</button>
+          <button class="btn btn-purple btn-sm" id="pmCreateBtn" onclick="createNewProfile()">✓ Create Team</button>
+        </div>
+      </div>
+
+      <div class="pm-divider"></div>
+
+      <!-- Manage Master Roster section -->
+      <div style="margin-top:0">
+        <div class="pm-section-label" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none" onclick="toggleManageRoster()">
+          <span>🗂 Manage Master Roster</span>
+          <span id="manageRosterToggleIcon" style="font-family:var(--mono);font-size:10px;color:var(--muted)">▶ show</span>
+        </div>
+        <div id="manageRosterSection" style="display:none;margin-top:10px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6">
+            Add new hires or remove departed agents from the global roster. Changes here are saved permanently to this browser — no code deploy needed.
+          </div>
+          <!-- Add new hire -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.18);border-radius:8px;padding:10px 12px">
+            <span style="font-family:var(--mono);font-size:9px;color:var(--green);letter-spacing:1px;white-space:nowrap">ADD MEMBER</span>
+            <input id="mrNewName" class="pm-new-input" type="text" placeholder="Full name…" maxlength="60" style="flex:2;min-width:120px;font-size:12px;padding:7px 10px;border-color:rgba(16,185,129,0.3)"
+              onkeydown="if(event.key==='Enter')mrAddMember()">
+            <select id="mrNewBatch" class="input-text" style="width:96px;font-size:12px;padding:7px 8px;background:var(--bg);border-color:rgba(16,185,129,0.2)">
+              <option value="">No Batch</option>
+              <option value="Batch 2">Batch 2</option>
+              <option value="Batch 3">Batch 3</option>
+            </select>
+            <button class="btn btn-sm" style="background:var(--green);color:#fff;font-size:12px" onclick="mrAddMember()">+ Add</button>
+          </div>
+          <!-- Current roster list -->
+          <div id="mrRosterList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+        </div>
+      </div>
+
+    </div><!-- /.pm-body -->
+  </div><!-- /.pm-dialog -->
+</div><!-- /#profileModal -->
+
 </body>
 </html>
