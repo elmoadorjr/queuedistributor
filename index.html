@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Queue Distributor v33 · EnableComp MVA</title>
+<title>Queue Distributor v35 · EnableComp MVA</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.js"></script>
@@ -655,6 +655,95 @@
   /* Filter banners — slightly more padding */
   .filter-banner { padding: 12px 18px !important; font-size: 12px !important; }
 
+
+  /* ── ONBOARDING WIZARD ─────────────────────────────────────── */
+  #wizardOverlay {
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(8,11,18,0.92); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .wizard-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; max-width: 560px; width: 100%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.7); overflow: hidden;
+    animation: wizardIn 0.35s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes wizardIn { from { opacity:0; transform:scale(0.93) translateY(16px); } to { opacity:1; transform:none; } }
+  .wizard-progress { height: 3px; background: var(--border); }
+  .wizard-progress-fill { height: 100%; background: linear-gradient(90deg,var(--accent),var(--accent2)); transition: width 0.4s ease; }
+  .wizard-header { padding: 28px 28px 0; }
+  .wizard-step-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .wizard-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 6px; line-height: 1.2; }
+  .wizard-subtitle { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .wizard-body { padding: 20px 28px; }
+  .wizard-checklist { display: flex; flex-direction: column; gap: 10px; margin: 4px 0; }
+  .wizard-check-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); font-size: 13px; line-height: 1.5; }
+  .wizard-check-icon { font-size: 20px; flex-shrink: 0; margin-top: -1px; }
+  .wizard-check-title { font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .wizard-check-desc { color: var(--muted); font-size: 12px; }
+  .wizard-footer { padding: 0 28px 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .wizard-dots { display: flex; gap: 6px; }
+  .wizard-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+  .wizard-dot.active { background: var(--accent); }
+  .wizard-dot.done { background: var(--green); }
+  .wizard-nav { display: flex; gap: 8px; }
+  .wizard-btn-skip { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 9px 16px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .wizard-btn-skip:hover { border-color: var(--text); color: var(--text); }
+  .wizard-btn-next { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 9px 22px; font-family: var(--sans); font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .wizard-btn-next:hover { background: #2563eb; }
+
+  /* ── TOOLTIP / ? ICONS ─────────────────────────────────────── */
+  .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: var(--accent); font-size: 10px; font-weight: 700; cursor: help; margin-left: 5px; flex-shrink: 0; vertical-align: middle; font-family: var(--mono); position: relative; }
+  .help-icon:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: #1e2a42; border: 1px solid rgba(59,130,246,0.3); color: var(--text);
+    font-size: 12px; font-weight: 400; font-family: var(--sans); line-height: 1.55;
+    padding: 10px 13px; border-radius: 9px; white-space: pre-wrap; max-width: 280px; min-width: 180px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 9000; pointer-events: none;
+    text-align: left; letter-spacing: 0; text-transform: none;
+  }
+  .help-icon:hover::before {
+    content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent; border-top-color: rgba(59,130,246,0.3); z-index: 9001;
+  }
+
+  /* ── INLINE SECTION HINTS ──────────────────────────────────── */
+  .section-hint { display: flex; align-items: flex-start; gap: 10px; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15); border-radius: 9px; padding: 10px 14px; margin-bottom: 14px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .section-hint .sh-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .section-hint strong { color: var(--text); }
+  .section-hint.green { background: rgba(16,185,129,0.05); border-color: rgba(16,185,129,0.2); }
+  .section-hint.amber { background: rgba(245,158,11,0.05); border-color: rgba(245,158,11,0.2); }
+
+  /* ── HELP PANEL ────────────────────────────────────────────── */
+  #helpPanel {
+    position: fixed; right: 0; top: 0; bottom: 0; width: 360px; max-width: 95vw;
+    background: var(--surface); border-left: 1px solid var(--border);
+    z-index: 8000; transform: translateX(100%); transition: transform 0.3s cubic-bezier(.16,1,.3,1);
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+  }
+  #helpPanel.open { transform: translateX(0); }
+  .help-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .help-panel-title { font-size: 16px; font-weight: 800; }
+  .help-panel-close { background: none; border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; color: var(--muted); font-size: 18px; cursor: pointer; line-height: 1; }
+  .help-panel-close:hover { color: var(--text); border-color: var(--text); }
+  .help-panel-body { overflow-y: auto; flex: 1; padding: 16px 20px 32px; }
+  .help-section { margin-bottom: 24px; }
+  .help-section-title { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .help-section-title::after { content:''; flex:1; height:1px; background:rgba(59,130,246,0.2); }
+  .help-step { display: flex; gap: 12px; margin-bottom: 10px; align-items: flex-start; }
+  .help-step-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: var(--accent); font-size: 11px; font-weight: 700; display: grid; place-items: center; flex-shrink: 0; font-family: var(--mono); }
+  .help-step-text { font-size: 13px; color: var(--muted); line-height: 1.55; padding-top: 2px; }
+  .help-step-text strong { color: var(--text); }
+  .help-qa { margin-bottom: 10px; }
+  .help-q { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+  .help-a { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .help-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 5px; font-family: var(--mono); font-size: 10px; font-weight: 700; }
+  .help-badge.b2 { background: rgba(168,85,247,0.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,0.3); }
+  .help-badge.b3 { background: rgba(34,211,238,0.12); color: #67e8f9; border: 1px solid rgba(34,211,238,0.25); }
+  #helpToggleBtn { position: fixed; right: 20px; bottom: 20px; z-index: 7999; background: var(--accent); color: #fff; border: none; border-radius: 50%; width: 46px; height: 46px; font-size: 20px; cursor: pointer; box-shadow: 0 4px 20px rgba(59,130,246,0.4); display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.15s; }
+  #helpToggleBtn:hover { background: #2563eb; transform: scale(1.08); }
 </style>
 </head>
 <body>
@@ -664,7 +753,7 @@
       <div class="logo-icon">⚖️</div>
       <div>
         <div class="logo-text">Queue Distributor</div>
-        <div class="logo-sub">EnableComp · MVA Team · v33</div>
+        <div class="logo-sub">EnableComp · MVA Team · v35</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -692,6 +781,7 @@
     <div class="panel">
       <div class="panel-header"><span class="panel-title">📂 Upload Queue Files</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">CSV / XLSX / XLS</span></div>
       <div class="panel-body">
+        <div class="section-hint"><span class="sh-icon">📋</span><div><strong>What to upload:</strong> Export your claim queue from Enforcer as a CSV or XLSX file. You can drop multiple files at once — they'll be merged automatically and duplicates removed.</div></div>
         <div class="alert alert-info">
           <span>ℹ️</span>
           <span>Upload one or multiple alpha list exports from Enforcer. All files will be merged, duplicates removed by ClaimID. Expected columns: <strong>ClaimID, Last 4 SSN, Patient FN, Patient LN, Patient DOB</strong>, etc.</span>
@@ -711,6 +801,7 @@
             <div class="prior-panel-title">Import Previous Queue Output <span style="font-family:var(--mono);font-size:9px;color:var(--purple);background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);padding:2px 7px;border-radius:10px;letter-spacing:1px;margin-left:4px">OPTIONAL</span></div>
             <button onclick="clearPriorQueue()" style="margin-left:auto;font-family:var(--mono);font-size:10px;background:none;border:1px solid rgba(168,85,247,0.3);color:var(--muted);border-radius:5px;padding:3px 9px;cursor:pointer" title="Clear all prior files">× Clear</button>
           </div>
+          <div class="section-hint" style="margin:0 0 10px"><span class="sh-icon">💡</span><div><strong>Optional — skip this on your first run.</strong> Come back to it once you've done a few sessions and want to balance workloads across weeks.</div></div>
           <div class="prior-panel-sub"><strong style="color:#d8b4fe">Why use this?</strong> If one agent got a lot of related-claim groups last week, this lets the tool give them fewer this week — keeping workload fair over time. Just drop the individual XLSX files from last session's ZIP here (multi-select or one by one). The tool reads each filename to identify the agent — no claims are added to the current queue.</div>
           <div class="prior-upload-zone" id="priorUploadZone">
             <input type="file" id="priorFileInput" accept=".xlsx,.xls" multiple>
@@ -740,6 +831,7 @@
         <span class="absent-count-badge" id="absentCountBadge"></span>
         <button class="absent-clear-btn" id="absentClearBtn" onclick="clearAllAbsent()" style="display:none">✕ Clear</button>
       </div>
+      <div class="section-hint amber" style="margin:0 0 10px"><span class="sh-icon">⚠️</span><div><strong>Do this first, every day.</strong> Mark anyone who isn't working today so their claims go to active agents instead.</div></div>
       <div class="absent-panel-sub">Click any agent's name to mark them <strong style="color:#fca5a5">absent today</strong> — they'll be completely skipped during distribution and won't appear in any exports.</div>
       <div class="absent-pill-grid" id="absentPillGrid"></div>
     </div>
@@ -768,7 +860,7 @@
 
         <!-- Global cap row -->
         <div class="global-cap-row" style="margin:16px 20px 10px;border-radius:10px">
-          <label>Global Cap<br><span style="font-size:9px">(all agents)</span></label>
+          <label>Global Cap <span class="help-icon" data-tip="Maximum claims any agent can receive in one run. Default 9999 = no limit. Only lower this if you want to cap everyone at a specific number (e.g. 50 claims each). You can also set individual caps per agent in the roster.">?</span><br><span style="font-size:9px">(all agents)</span></label>
           <input type="number" class="global-cap-input" id="globalCapInput" min="1" max="9999" value="9999" placeholder="9999" oninput="applyGlobalCap(this.value)">
           <div class="global-cap-desc"><strong>Applies to all agents.</strong> Default 9999 = max (no limit). Override per-agent in the Cap column (shows purple). Saved with roster.</div>
         </div>
@@ -816,20 +908,22 @@
         <div style="display:flex;align-items:center;gap:10px">
           <span id="rulesCollapseIcon" class="collapse-icon">▼</span>
           <span class="panel-title">⚙️ Distribution Rules</span>
-          <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ Set date filter here before running</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">⚠ Set date filter here before running</span><span class="help-icon" data-tip="The date filter is the most important setting. It excludes claims reviewed after the selected date. Click 'Set to Today (PH)' for standard daily use.">?</span>
           <span style="font-family:var(--mono);font-size:10px;color:var(--muted)" id="rulesHintSpan">(click to collapse)</span>
         </div>
       </div>
       <div class="panel-body" id="rulesPanelBody" style="display:none">
+        <div class="section-hint amber"><span class="sh-icon">⚠️</span><div><strong>Always set the Review Date Filter before running.</strong> Use the "Set to Today (PH)" button for standard daily distribution. Leave other settings at their defaults unless instructed otherwise.</div></div>
         <div class="config-section-head">Column Mapping</div>
         <div class="config-grid">
           <div class="config-item">
-            <label>Related Claims Key</label>
+            <label>Related Claims Key <span class="help-icon" data-tip="How the tool identifies that two claims belong to the same patient. The recommended option uses all 4 fields: SSN + DOB + First Name + Last Name. When SSN is absent, DOB + Full Name is used — so no claim is left ungrouped.">?</span></label>
             <select class="input-text" id="relatedKey">
-              <option value="ssn_dob">Last 4 SSN + Date of Birth (Recommended)</option>
+              <option value="ssn_dob_name">SSN + DOB + Full Name (Recommended)</option>
+              <option value="ssn_dob">Last 4 SSN + Date of Birth</option>
               <option value="ssn_name">Last 4 SSN + Last Name</option>
               <option value="acct">Patient Account Number</option>
-              <option value="name_dob">Last Name + Date of Birth</option>
+              <option value="name_dob">Full Name + Date of Birth</option>
             </select>
           </div>
           <div class="config-item">
@@ -856,7 +950,12 @@
         
         <!-- Batch Status Limits -->
         <div class="divider" style="margin: 20px 0 16px; background: rgba(59,130,246,0.15)"></div>
-        <div class="config-section-head">Batch Status Filters</div>
+        <div class="config-section-head">Batch Status Filters <span class="help-icon" data-tip="Controls which claim statuses each batch of agents can receive.
+
+Batch 2: standard statuses (Patient Pursuit, Bill Filed, etc.)
+Batch 3: same as Batch 2 PLUS Validation Pending - Level 1
+
+Leave all checked for normal use.">?</span></div>
         <div class="config-grid">
           <div class="config-item">
             <label>Status Column Name</label>
@@ -906,7 +1005,7 @@
 
         <!-- Equity Mode -->
         <div class="equity-row">
-          <label>Equity Mode<br><span style="font-size:9px">Related Claims</span></label>
+          <label>Equity Mode <span class="help-icon" data-tip="Keeps the number AND size of related-claim groups balanced across agents. Leave this ON — it prevents one agent from getting stuck with all the large patient families.">?</span><br><span style="font-size:9px">Related Claims</span></label>
           <label class="equity-toggle"><input type="checkbox" id="equityModeToggle" checked onchange="autoSaveSettingsIfExists()"><span class="equity-slider"></span></label>
           <div class="equity-desc">
             <strong style="color:var(--green)">Recommended — leave this ON.</strong> Balances both the number <em>and</em> size of related-claim groups across agents — so no one gets stuck with all the big families. If you imported last session's files above, agents who had heavier loads last time automatically receive lighter loads this run.
@@ -917,7 +1016,7 @@
 
     <div class="toolbar" style="justify-content:space-between">
       <button class="btn btn-secondary" onclick="goStep1()">← Back</button>
-      <button class="btn btn-primary" onclick="goStep3()">Run Distribution →</button>
+      <button class="btn btn-primary" onclick="goStep3()">⚡ Run Distribution →</button>
     </div>
   </div>
 
@@ -950,6 +1049,7 @@
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, exportSummarySheet)" title="Export a summary showing claim counts per agent (not individual claims)">📋 Summary Sheet</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 2'))" style="border-color:rgba(168,85,247,0.4);color:#d8b4fe">⬇ Batch 2</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 3'))" style="border-color:rgba(34,211,238,0.4);color:#67e8f9">⬇ Batch 3</button>
+          <div class="section-hint green" style="margin:0 8px 0 0;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;border-radius:7px;font-size:11px"><span>✅</span><span><strong>Recommended flow:</strong> ZIP Export → share each file with the matching agent</span></div>
           <button class="btn btn-success btn-sm export-btn" onclick="wrapExport(this, exportAll)" title="Recommended: one ZIP with individual agent files + Team Overview file with Summary sheet">📦 ZIP Export ✓ Recommended</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="confirmCombinedExport()" style="border-color:var(--amber);color:var(--amber)" title="Creates one shared file — all agent sheets visible to each other">⚠ Combined (shared)</button>
         </div>
@@ -1146,6 +1246,113 @@ const ROSTER_KEY = 'queuedist_roster_v2';
 const PROV_KEY = 'queuedist_provs_v2';
 
 // ── XSS PREVENTION HELPER ─────────────────────────────────────────────────────
+
+// ── ONBOARDING WIZARD ────────────────────────────────────────────────────────
+const WIZARD_STEPS = [
+  {
+    label: 'Step 1 of 5', progress: '20%',
+    title: 'Welcome to Queue Distributor 👋',
+    subtitle: "This tool distributes MVA claims across your team automatically — fairly, by status mix, and grouped by patient. Let's walk you through how it works.",
+    body: `<div class="wizard-checklist">
+      <div class="wizard-check-item"><div class="wizard-check-icon">📂</div><div><div class="wizard-check-title">Upload your queue files</div><div class="wizard-check-desc">Drop your Enforcer alpha list exports (CSV or XLSX)</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">👥</div><div><div class="wizard-check-title">Configure your team</div><div class="wizard-check-desc">Mark absent agents, set caps if needed</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">⚡</div><div><div class="wizard-check-title">Run distribution</div><div class="wizard-check-desc">One click — claims split proportionally by status</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">📦</div><div><div class="wizard-check-title">Export ZIP</div><div class="wizard-check-desc">Each agent gets their own Excel file</div></div></div>
+    </div>`, btnLabel: 'Next →'
+  },
+  {
+    label: 'Step 2 of 5', progress: '40%',
+    title: '📂 Step 1 — Upload Files',
+    subtitle: "On the main screen you'll see the Upload panel. Drop your CSV or XLSX files from Enforcer there.",
+    body: `<div class="wizard-checklist">
+      <div class="wizard-check-item"><div class="wizard-check-icon">✅</div><div><div class="wizard-check-title">Drag & drop or click to browse</div><div class="wizard-check-desc">You can upload multiple files at once — they merge automatically</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">🔁</div><div><div class="wizard-check-title">Prior Queue Import is optional</div><div class="wizard-check-desc">Skip it on your first run — it's for balancing workloads across sessions</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">➡️</div><div><div class="wizard-check-title">Click "Configure Agents" when ready</div><div class="wizard-check-desc">The button activates once files are loaded</div></div></div>
+    </div>`, btnLabel: 'Next →'
+  },
+  {
+    label: 'Step 3 of 5', progress: '60%',
+    title: '👥 Step 2 — Configure Your Team',
+    subtitle: 'Before running, do two things: mark absent agents, and set the date filter.',
+    body: `<div class="wizard-checklist">
+      <div class="wizard-check-item"><div class="wizard-check-icon">🚫</div><div><div class="wizard-check-title">Mark absent agents first</div><div class="wizard-check-desc">Click any name in the "Who's absent?" bar — they'll be skipped completely</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">📅</div><div><div class="wizard-check-title">Set the Review Date Filter</div><div class="wizard-check-desc">Open Distribution Rules → click "Set to Today (PH)" for daily use</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">💾</div><div><div class="wizard-check-title">Save your roster once</div><div class="wizard-check-desc">Your agent list and settings will load automatically next time</div></div></div>
+    </div>`, btnLabel: 'Next →'
+  },
+  {
+    label: 'Step 4 of 5', progress: '80%',
+    title: '⚡ Step 3 — Run & Review',
+    subtitle: 'Click "Run Distribution" and the tool does the rest. Here\'s what to look for in the results.',
+    body: `<div class="wizard-checklist">
+      <div class="wizard-check-item"><div class="wizard-check-icon">📊</div><div><div class="wizard-check-title">Stats bar shows the summary</div><div class="wizard-check-desc">Total claims, how many distributed, related patient groups, and status mix</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">🎨</div><div><div class="wizard-check-title">Status Mix bar on each agent card</div><div class="wizard-check-desc">Shows each agent's claim type breakdown vs the queue target — green = over, red = under</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">⚠️</div><div><div class="wizard-check-title">Watch for amber/red banners</div><div class="wizard-check-desc">These explain any claims that couldn't be assigned (cap overflow, status mismatch, etc.)</div></div></div>
+    </div>`, btnLabel: 'Next →'
+  },
+  {
+    label: 'Step 5 of 5', progress: '100%',
+    title: "📦 Export & You're Done!",
+    subtitle: 'Once you\'re happy with the distribution, export the files for your team.',
+    body: `<div class="wizard-checklist">
+      <div class="wizard-check-item"><div class="wizard-check-icon">📦</div><div><div class="wizard-check-title">ZIP Export (Recommended)</div><div class="wizard-check-desc">Downloads a ZIP with one Excel file per agent — each only sees their own claims</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">📋</div><div><div class="wizard-check-title">Summary Sheet</div><div class="wizard-check-desc">A single Excel showing totals per agent — good for your records</div></div></div>
+      <div class="wizard-check-item"><div class="wizard-check-icon">🔄</div><div><div class="wizard-check-title">Re-run anytime</div><div class="wizard-check-desc">Hit "Re-run Distribution" to re-distribute with changed settings without re-uploading</div></div></div>
+    </div>`, btnLabel: "✓ Got it — let's go!"
+  }
+];
+
+let _wizardStep = 0;
+
+function wizardNext() {
+  if (_wizardStep >= WIZARD_STEPS.length - 1) { skipWizard(); return; }
+  _wizardStep++;
+  _renderWizardStep();
+}
+
+function _renderWizardStep() {
+  const s = WIZARD_STEPS[_wizardStep];
+  document.getElementById('wizardStepLabel').textContent = s.label;
+  document.getElementById('wizardTitle').textContent = s.title;
+  document.getElementById('wizardSubtitle').textContent = s.subtitle;
+  document.getElementById('wizardBody').innerHTML = s.body;
+  document.getElementById('wizardProgress').style.width = s.progress;
+  document.getElementById('wizardNextBtn').textContent = s.btnLabel;
+  // Update dots
+  WIZARD_STEPS.forEach((_, i) => {
+    const dot = document.getElementById('wdot' + i);
+    if (!dot) return;
+    dot.className = 'wizard-dot' + (i < _wizardStep ? ' done' : i === _wizardStep ? ' active' : '');
+  });
+}
+
+function skipWizard() {
+  const overlay = document.getElementById('wizardOverlay');
+  if (overlay) {
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 0.3s';
+    setTimeout(() => overlay.remove(), 300);
+  }
+  localStorage.setItem('qd_wizard_done', '1');
+}
+
+// ── HELP PANEL ────────────────────────────────────────────────────────────────
+function toggleHelpPanel() {
+  const panel = document.getElementById('helpPanel');
+  const btn = document.getElementById('helpToggleBtn');
+  if (!panel) return;
+  const isOpen = panel.classList.toggle('open');
+  btn.textContent = isOpen ? '✕' : '?';
+}
+
+// ── INIT: skip wizard if already seen ────────────────────────────────────────
+(function initWizard() {
+  if (localStorage.getItem('qd_wizard_done') === '1') {
+    const overlay = document.getElementById('wizardOverlay');
+    if (overlay) overlay.remove();
+  }
+})();
+
 function esc(str) {
   if (str === null || str === undefined) return '';
   return String(str).replace(/[&<>"']/g, function(m) {
@@ -1859,16 +2066,25 @@ function addAgent() {
 
 // ── DISTRIBUTION LOGIC ────────────────────────────────────────────────────────
 function getPatientKey(row) {
-  const method = document.getElementById('relatedKey')?.value || 'ssn_dob';
-  const ssn = String(row['Last 4 SSN']||'').trim();
-  const dob = String(row['Patient DOB']||'').trim();
-  const ln = String(row['Patient LN']||'').trim().toUpperCase();
+  const method = document.getElementById('relatedKey')?.value || 'ssn_dob_name';
+  const ssn  = String(row['Last 4 SSN']||'').trim();
+  const dob  = String(row['Patient DOB']||'').trim();
+  const fn   = String(row['Patient FN']||'').trim().toUpperCase();
+  const ln   = String(row['Patient LN']||'').trim().toUpperCase();
+  const fullName = fn && ln ? `${fn}_${ln}` : (ln || fn);
   const acct = String(row['Patient Acct']||'').trim();
   switch(method) {
+    case 'ssn_dob_name':
+      // All 4 fields form the key. When SSN is absent, DOB + Full Name still
+      // uniquely identifies the patient — no claim is left ungrouped.
+      if (ssn && dob && fullName) return `${ssn}__${dob}__${fullName}`;
+      if (ssn && dob)             return `${ssn}__${dob}`;
+      if (dob && fullName)        return `${dob}__${fullName}`;
+      return null;
     case 'ssn_dob':  return (ssn&&dob)?`${ssn}__${dob}`:null;
     case 'ssn_name': return (ssn&&ln)?`${ssn}__${ln}`:null;
     case 'acct':     return acct?acct:null;
-    case 'name_dob': return (ln&&dob)?`${ln}__${dob}`:null;
+    case 'name_dob': return (fullName&&dob)?`${fullName}__${dob}`:null;
     default: return null;
   }
 }
@@ -2262,6 +2478,84 @@ function runDistribution() {
   renderResults(activeAgents, related, singles, workingRows.length - overflow - statusFiltered);
 }
 
+// ── STATUS MIX HELPERS (extracted to avoid nested template literals) ──────────
+
+const _STATUS_COLORS_MAP = {
+  'PATIENT PURSUIT':'#f59e0b','BILL POR':'#3b82f6','EOB REQUESTED':'#10b981',
+  'BILL FILED':'#6366f1','COMMERCIAL BILL FILED':'#ec4899',
+  'VALIDATION PENDING - LEVEL 1':'#22d3ee'
+};
+const _STATUS_DEFAULT_COLORS = ['#a78bfa','#fb923c','#4ade80','#f472b6','#38bdf8','#facc15'];
+
+function _statusShortLabel(s) {
+  return s.replace('VALIDATION PENDING - LEVEL 1','VP-L1')
+          .replace('COMMERCIAL BILL FILED','COM BILL')
+          .replace('PATIENT PURSUIT','PAT PURSUIT')
+          .replace('EOB REQUESTED','EOB REQ');
+}
+
+function _statusColor(s, idx) {
+  return _STATUS_COLORS_MAP[s] || _STATUS_DEFAULT_COLORS[idx % _STATUS_DEFAULT_COLORS.length];
+}
+
+function renderQueueStatusMixCard() {
+  const sp = state.statusProportions || {};
+  const keys = Object.keys(sp).filter(s=>sp[s]>0).sort((a,b)=>sp[b]-sp[a]);
+  if (!keys.length) return '';
+  let bars = '', legend = '';
+  keys.forEach((s,i) => {
+    const col = _statusColor(s, i);
+    const lbl = _statusShortLabel(s);
+    const pct = (sp[s]*100).toFixed(1);
+    const pctR = (sp[s]*100).toFixed(0);
+    bars += '<div title="' + s + ': ' + pct + '%" style="flex:' + sp[s] + ';background:' + col + ';height:100%;min-width:3px"></div>';
+    legend += '<span style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:9px;color:var(--muted)">'
+            + '<span style="width:7px;height:7px;border-radius:2px;background:' + col + ';display:inline-block"></span>'
+            + lbl + ' ' + pctR + '%</span>';
+  });
+  return '<div class="stat-card" style="min-width:200px;flex:2;max-width:400px">'
+       + '<div class="stat-label">Queue Status Mix</div>'
+       + '<div style="display:flex;height:10px;border-radius:3px;overflow:hidden;margin:6px 0 5px;gap:1px">' + bars + '</div>'
+       + '<div style="display:flex;flex-wrap:wrap;gap:3px 8px">' + legend + '</div>'
+       + '</div>';
+}
+
+function renderAgentStatusMixBar(agentName, rows, statusCol) {
+  const sCounts = (state.agentStatusCounts || {})[agentName] || {};
+  const sProps  = state.statusProportions || {};
+  const knownStatuses = Object.keys(sProps).filter(s => sProps[s] > 0);
+  if (!knownStatuses.length || !rows.length) return '';
+  const rows_n = rows.length;
+  let bars = '', pills = '';
+  knownStatuses.forEach((s, i) => {
+    const target = sProps[s];
+    const count  = sCounts[s] || 0;
+    const actual = count / rows_n;
+    const diff   = actual - target;
+    const col    = _statusColor(s, i);
+    const lbl    = _statusShortLabel(s);
+    const diffStr  = (diff >= 0 ? '+' : '') + (diff*100).toFixed(1) + '%';
+    const diffColor = Math.abs(diff) < 0.05 ? 'var(--muted)' : diff > 0 ? 'var(--green)' : '#f87171';
+    const barH   = Math.max(actual, 0.01);
+    bars += '<div title="' + s + ': ' + (actual*100).toFixed(1) + '% actual vs ' + (target*100).toFixed(1) + '% target"'
+          + ' style="flex:' + barH + ';min-width:2px;background:' + col + ';border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;cursor:default">'
+          + '<div style="font-family:var(--mono);font-size:8px;color:rgba(0,0,0,0.7);padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center">'
+          + (actual*100).toFixed(0) + '%</div></div>';
+    pills += '<div style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;">'
+           + '<div style="width:8px;height:8px;border-radius:2px;background:' + col + ';flex-shrink:0"></div>'
+           + '<span style="color:var(--muted)">' + lbl + '</span>'
+           + '<span style="color:var(--text)">' + count + '</span>'
+           + '<span style="color:' + diffColor + '">(' + diffStr + ')</span>'
+           + '</div>';
+  });
+  return '<div style="padding:8px 14px 8px;border-bottom:1px solid var(--border);">'
+       + '<div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">'
+       + 'Status Mix <span style="color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none">(vs queue target · +over −under)</span></div>'
+       + '<div style="display:flex;gap:2px;height:22px;border-radius:4px;overflow:hidden;margin-bottom:6px">' + bars + '</div>'
+       + '<div style="display:flex;flex-wrap:wrap;gap:6px 14px">' + pills + '</div>'
+       + '</div>';
+}
+
 function renderResults(agents,relGroups,singles,totalDistributed) {
   const total=state.allRows.length;
   const relClaims=relGroups.reduce((s,g)=>s+g.length,0);
@@ -2296,25 +2590,7 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
     ${Object.keys(state.priorRelatedCounts).length>0?`<div class="stat-card" style="border-color:rgba(168,85,247,0.35);background:rgba(168,85,247,0.05)"><div class="stat-label">Prior Queue</div><div class="stat-value" style="color:var(--purple);font-size:18px">⚖️</div><div class="stat-sub">offset applied (50% memory, symmetric)</div></div>`:''}
     <div class="stat-card sc-match"><div class="stat-label">Provider Matched</div><div class="stat-value" style="color:var(--purple)">${matchPct}%</div><div class="stat-sub">${state.exactMatches} exact · ${state.provMatches} prov</div></div>
     ${nearCapCard}
-    ${(()=>{
-      const sp = state.statusProportions || {};
-      const keys = Object.keys(sp).filter(s=>sp[s]>0).sort((a,b)=>sp[b]-sp[a]);
-      if (!keys.length) return '';
-      const STATUS_COLORS = {'PATIENT PURSUIT':'#f59e0b','BILL POR':'#3b82f6','EOB REQUESTED':'#10b981','BILL FILED':'#6366f1','COMMERCIAL BILL FILED':'#ec4899','VALIDATION PENDING - LEVEL 1':'#22d3ee'};
-      const DEFAULT_COLORS = ['#a78bfa','#fb923c','#4ade80'];
-      let ci=0;
-      const bars = keys.map(s=>{
-        const col = STATUS_COLORS[s]||DEFAULT_COLORS[ci++%DEFAULT_COLORS.length];
-        const lbl = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
-        return `<div title="${s}: ${(sp[s]*100).toFixed(1)}%" style="flex:${sp[s]};background:${col};height:100%;min-width:3px"></div>`;
-      }).join('');
-      const legend = keys.map(s=>{
-        const col = STATUS_COLORS[s]||DEFAULT_COLORS[ci++%DEFAULT_COLORS.length];
-        const lbl = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
-        return `<span style="display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-size:9px;color:var(--muted)"><span style="width:7px;height:7px;border-radius:2px;background:${col};display:inline-block"></span>${lbl} ${(sp[s]*100).toFixed(0)}%</span>`;
-      }).join('');
-      return `<div class="stat-card" style="min-width:200px;flex:2;max-width:400px"><div class="stat-label">Queue Status Mix</div><div style="display:flex;height:10px;border-radius:3px;overflow:hidden;margin:6px 0 5px;gap:1px">${bars}</div><div style="display:flex;flex-wrap:wrap;gap:3px 8px">${legend}</div></div>`;
-    })()}
+    ${renderQueueStatusMixCard()}
   `;
 
   const maxC=Math.max(...agents.map(a=>state.distribution[a].length),1);
@@ -2468,63 +2744,7 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
         </div>
       </div>
       ${provTagsHtml?`<div style="padding:8px 18px 0;border-bottom:1px solid var(--border)">${provTagsHtml}</div>`:''}
-      ${(()=>{
-        // ── Status Mix Bar ──────────────────────────────────────────────────
-        // Shows this agent's actual status proportions vs queue target.
-        const sCounts = (state.agentStatusCounts || {})[agentName] || {};
-        const sProps  = state.statusProportions || {};
-        const knownStatuses = Object.keys(sProps).filter(s => sProps[s] > 0);
-        if (!knownStatuses.length || !rows.length) return '';
-        const STATUS_COLORS = {
-          'PATIENT PURSUIT':         '#f59e0b',
-          'BILL POR':                '#3b82f6',
-          'EOB REQUESTED':           '#10b981',
-          'BILL FILED':              '#6366f1',
-          'COMMERCIAL BILL FILED':   '#ec4899',
-          'VALIDATION PENDING - LEVEL 1': '#22d3ee',
-        };
-        const DEFAULT_COLORS = ['#a78bfa','#fb923c','#4ade80','#f472b6','#38bdf8','#facc15'];
-        let colorIdx = 0;
-        const rows_n = rows.length;
-        const bars = knownStatuses.map(s => {
-          const target = sProps[s];
-          const actual = (sCounts[s] || 0) / rows_n;
-          const diff = actual - target;
-          const col = STATUS_COLORS[s] || DEFAULT_COLORS[colorIdx++ % DEFAULT_COLORS.length];
-          const label = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1')
-                         .replace('COMMERCIAL BILL FILED','COM BILL')
-                         .replace('PATIENT PURSUIT','PAT PURSUIT')
-                         .replace('EOB REQUESTED','EOB REQ')
-                         .replace('BILL FILED','BILL FILED')
-                         .replace('BILL POR','BILL POR');
-          const diffStr = diff >= 0 ? `+${(diff*100).toFixed(1)}%` : `${(diff*100).toFixed(1)}%`;
-          const diffColor = Math.abs(diff) < 0.05 ? 'var(--muted)' : diff > 0 ? 'var(--green)' : '#f87171';
-          return `<div title="${s}: ${(actual*100).toFixed(1)}% actual vs ${(target*100).toFixed(1)}% target" style="flex:${Math.max(actual,0.01)};min-width:2px;background:${col};border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;overflow:hidden;cursor:default">
-            <div style="font-family:var(--mono);font-size:8px;color:rgba(0,0,0,0.7);padding:1px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;text-align:center">${(actual*100).toFixed(0)}%</div>
-          </div>`;
-        }).join('');
-        const pills = knownStatuses.map(s => {
-          const target = sProps[s];
-          const actual = (sCounts[s] || 0) / rows_n;
-          const count = sCounts[s] || 0;
-          const diff = actual - target;
-          const col = STATUS_COLORS[s] || DEFAULT_COLORS[colorIdx++ % DEFAULT_COLORS.length];
-          const diffStr = diff >= 0 ? `+${(diff*100).toFixed(1)}%` : `${(diff*100).toFixed(1)}%`;
-          const diffColor = Math.abs(diff) < 0.05 ? 'var(--muted)' : diff > 0 ? 'var(--green)' : '#f87171';
-          const shortLabel = s.replace('VALIDATION PENDING - LEVEL 1','VP-L1').replace('COMMERCIAL BILL FILED','COM BILL').replace('PATIENT PURSUIT','PAT PURSUIT').replace('EOB REQUESTED','EOB REQ');
-          return `<div style="display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;">
-            <div style="width:8px;height:8px;border-radius:2px;background:${col};flex-shrink:0"></div>
-            <span style="color:var(--muted)">${shortLabel}</span>
-            <span style="color:var(--text)">${count}</span>
-            <span style="color:${diffColor}">(${diffStr})</span>
-          </div>`;
-        }).join('');
-        return `<div style="padding:8px 14px 8px;border-bottom:1px solid var(--border);">
-          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px">Status Mix <span style="color:var(--muted);font-weight:400;letter-spacing:0;text-transform:none">(vs queue target · +over −under)</span></div>
-          <div style="display:flex;gap:2px;height:22px;border-radius:4px;overflow:hidden;margin-bottom:6px">${bars}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px 14px">${pills}</div>
-        </div>`;
-      })()}
+      ${renderAgentStatusMixBar(agentName, rows, statusCol)}
       <div class="adc-body" style="max-height:none;overflow:visible">${html||'<div style="color:var(--muted);font-size:12px">No claims assigned</div>'}</div>
     </div>`;
   }).join('');
