@@ -2303,16 +2303,15 @@ function runDistribution() {
       _statusProportions[s] = _statusProportions[s] / workingRows.length;
     });
   }
+  const buckets={};
+  const agentObjs = state.agents.filter(a=>a.included);
+  agentObjs.forEach(a=>{ buckets[a.name]=[]; });
   agentObjs.forEach(a => { _agentStatusCounts[a.name] = {}; });
 
   const related=[], singles=[];
   Object.values(groups).forEach(g => { if (g.length>1) related.push(g); else singles.push(g[0]); });
   unkeyed.forEach(r=>singles.push(r));
   related.sort((a,b)=>b.length-a.length);
-
-  const buckets={};
-  const agentObjs = state.agents.filter(a=>a.included);
-  agentObjs.forEach(a=>{ buckets[a.name]=[]; });
 
   let overflow = 0, statusFiltered = 0, exactMatches = 0, provMatches = 0;
   const relGroupCount = related.length;
