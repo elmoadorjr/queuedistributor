@@ -2409,7 +2409,6 @@ function runDistribution() {
 
   const filterDateVal = (document.getElementById('reviewDateFilter')?.value || '').trim();
   const dateCol = (document.getElementById('reviewDateCol')?.value || 'Review Dt').trim();
-  const excludeSys = true; // Always exclude System/Enforcer accounts
   const excludeBilingual = document.getElementById('excludeBilingual')?.value === 'yes';
 
   // Parse Batch Status Rules
@@ -2422,29 +2421,22 @@ function runDistribution() {
 
   // Reset central unassigned log
   state.unassignedReasons = {};
+  state.filteredOutStatus = 0;
 
   let filteredOutDate = 0;
-  let filteredOutSys = 0;
   let filteredOutBilingual = 0;
-  
+
   let workingRows = state.allRows.filter(row => {
     const assignee = String(row['Assigned To'] || row['Owner'] || '').toUpperCase();
-    
-    // 1. Separate System Account Exclusion Logic
-    if (excludeSys && (assignee.includes('SYSTEM') || assignee.includes('ENFORCER'))) {
-      filteredOutSys++;
-      state.unassignedReasons[row.ClaimID] = 'Filtered: System Account';
-      return false;
-    }
-    
-    // 2. Separate MVA Bilingual Team Exclusion Logic
+
+    // 1. MVA Bilingual Team Exclusion Logic
     if (excludeBilingual && assignee.includes('MVA BILINGUAL')) {
       filteredOutBilingual++;
       state.unassignedReasons[row.ClaimID] = 'Filtered: MVA Bilingual Team';
       return false;
     }
     
-    // 3. Date Filter Logic
+    // 2. Date Filter Logic
     if (filterDateVal) {
       const raw = row[dateCol];
       if (raw) {
@@ -2461,7 +2453,6 @@ function runDistribution() {
   });
 
   state.filteredOutDate = filteredOutDate;
-  state.filteredOutSys = filteredOutSys;
   state.filteredOutBilingual = filteredOutBilingual;
   state.dateColUsed = filterDateVal ? dateCol : null;
 
@@ -2753,7 +2744,6 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
   const relClaims=relGroups.reduce((s,g)=>s+g.length,0);
   
   let banners = '';
-  if (state.filteredOutSys > 0) banners += `<div class="filter-banner">🤖 <strong>${state.filteredOutSys.toLocaleString()} claim${state.filteredOutSys!==1?'s':''}</strong> excluded — assigned to System Accounts</div>`;
   if (state.filteredOutBilingual > 0) banners += `<div class="filter-banner">🌐 <strong>${state.filteredOutBilingual.toLocaleString()} claim${state.filteredOutBilingual!==1?'s':''}</strong> excluded — assigned to MVA Bilingual Team</div>`;
   if (state.filteredOutDate > 0) banners += `<div class="filter-banner">📅 <strong>${state.filteredOutDate.toLocaleString()} claim${state.filteredOutDate!==1?'s':''}</strong> excluded — Review Date beyond cutoff</div>`;
   if (state.filteredOutStatus > 0) banners += `<div class="filter-banner red">🚫 <strong>${state.filteredOutStatus.toLocaleString()} claim${state.filteredOutStatus!==1?'s':''}</strong> excluded — Status not allowed by active agents' batches</div>`;
@@ -3421,7 +3411,7 @@ async function _buildStyledWorkbook(agentList, distributionMap, agentStateList, 
 
   if (includeUnassigned && unassignedClaims.length > 0) {
     // Classify: unworkable reasons are filter exclusions; everything else is workable (cap overflow etc.)
-    const UNWORKABLE_PREFIXES = ['Filtered: Future Review Date', 'Filtered: MVA Bilingual Team', 'Filtered: System Account'];
+    const UNWORKABLE_PREFIXES = ['Filtered: Future Review Date', 'Filtered: MVA Bilingual Team'];
     const workable   = unassignedClaims.filter(r => {
       const reason = state.unassignedReasons[r.ClaimID] || '';
       return !UNWORKABLE_PREFIXES.some(p => reason.startsWith(p));
@@ -4599,6 +4589,7 @@ function confirmTeamChoice() {
   }
   if (_tcPendingId === null) {
     // Switch to Team Yanny (default/null profile)
+    closeTeamChooser(); // close before mutations so a render throw can't leave modal open
     _activeProfileId = null;
     localStorage.removeItem(ACTIVE_PROFILE_KEY);
     state.agents = DEFAULT_ROSTER.map((a,i) => ({ name:a.name, color:COLORS[i%COLORS.length], included:true, cap:null, batch:a.batch||'', role:'TM' }));
@@ -4607,7 +4598,6 @@ function confirmTeamChoice() {
     renderAbsentPanel && renderAbsentPanel();
     updateAbsentBadge && updateAbsentBadge();
     _updateTeamBanner();
-    closeTeamChooser();
     toast('Switched to Team Yanny ✓', 'success');
   } else {
     const idToSwitch = _tcPendingId; // capture before closeTeamChooser nulls it
