@@ -1088,7 +1088,7 @@
             <label>Review Date Filter</label>
             <div style="display:flex;gap:6px;align-items:center">
               <input type="date" class="input-text" id="reviewDateFilter" style="flex:1;cursor:pointer">
-              <button class="btn btn-secondary btn-sm" onclick="setReviewDateToday()" title="PH is 1 day ahead of US — clicking this sets to US yesterday, which is PH today" style="height: 38px;">Set to Today (PH) 🇵🇭</button>
+              <button class="btn btn-secondary btn-sm" onclick="setReviewDateToday()" title="Sets the Review Date filter to today's date" style="height: 38px;">Set to Today (PH) 🇵🇭</button>
             </div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:5px;letter-spacing:0.5px">Leave blank = include all dates. Claims reviewed <em>after</em> this date will be excluded from distribution.</div>
           </div>
@@ -2292,7 +2292,7 @@ function getPatientKey(row) {
 }
 
 function setReviewDateToday() {
-  const d = new Date(); d.setDate(d.getDate() - 1);
+  const d = new Date();
   const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
   document.getElementById('reviewDateFilter').value = `${y}-${m}-${dd}`;
 }
