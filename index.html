@@ -864,7 +864,7 @@
       <div class="logo-icon">⚖️</div>
       <div>
         <div class="logo-text">Queue Distributor</div>
-        <div class="logo-sub" id="logoSub">EnableComp · MVA Team · v35</div>
+        <div class="logo-sub" id="logoSub">EnableComp · MVA Team · v36</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1223,7 +1223,7 @@ Leave all checked for normal use.">?</span></div>
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, exportSummarySheet)" title="Export a summary showing claim counts per agent (not individual claims)">📋 Summary Sheet</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 2'))" style="border-color:rgba(168,85,247,0.4);color:#d8b4fe">⬇ Batch 2</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="wrapExport(this, () => exportBatch('Batch 3'))" style="border-color:rgba(34,211,238,0.4);color:#67e8f9">⬇ Batch 3</button>
-          <div class="section-hint green" style="margin:0 8px 0 0;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;border-radius:7px;font-size:11px"><span>✅</span><span><strong>Recommended flow:</strong> ZIP Export → share each file with the matching agent</span></div>
+          <div class="section-hint amber" style="margin:0 8px 0 0;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;border-radius:7px;font-size:11px"><span>⚠️</span><span><strong>Before exporting:</strong> Close all open Enforcer tabs first, then ZIP Export → share each file with the matching agent</span></div>
           <button class="btn btn-success btn-sm export-btn" onclick="wrapExport(this, exportAll)" title="Recommended: one ZIP with individual agent files + Team Overview file with Summary sheet">📦 ZIP Export ✓ Recommended</button>
           <button class="btn btn-secondary btn-sm export-btn" onclick="confirmCombinedExport()" style="border-color:var(--amber);color:var(--amber)" title="Creates one shared file — all agent sheets visible to each other">⚠ Combined (shared)</button>
         </div>
@@ -5054,6 +5054,38 @@ function importProfiles() {
     </div><!-- /.pm-body -->
   </div><!-- /.pm-dialog -->
 </div><!-- /#profileModal -->
+
+<!-- ── HELP PANEL ─────────────────────────────────────────────────────── -->
+<div id="helpPanel">
+  <div class="help-panel-header">
+    <div class="help-panel-title">📖 Quick Guide</div>
+    <button class="help-panel-close" onclick="toggleHelpPanel()">✕</button>
+  </div>
+  <div class="help-panel-body">
+    <div class="help-section">
+      <div class="help-section-title">How to Use</div>
+      <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text"><strong>Upload Files</strong> — Drop your Enforcer CSV/XLSX alpha list exports. Multiple files merge automatically.</div></div>
+      <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text"><strong>Configure Agents</strong> — Mark absent agents, set the Review Date filter to today (PH), adjust caps if needed.</div></div>
+      <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text"><strong>Run Distribution</strong> — Hit "Run Distribution". Claims split proportionally by status across active agents.</div></div>
+      <div class="help-step"><div class="help-step-num">4</div><div class="help-step-text"><strong>Close Enforcer tabs first</strong>, then use <strong>ZIP Export</strong> — each agent gets their own Excel file. Share the matching file with each person.</div></div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Batch Colours</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+        <div><span class="help-badge b1">Batch 1</span> <span style="color:var(--muted);margin-left:6px">No batch restriction by default</span></div>
+        <div><span class="help-badge b2">Batch 2</span> <span style="color:var(--muted);margin-left:6px">Standard statuses + VP-1</span></div>
+        <div><span class="help-badge b3">Batch 3</span> <span style="color:var(--muted);margin-left:6px">Batch 2 statuses + Validation Pending L1</span></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">FAQ</div>
+      <div class="help-qa"><div class="help-q">Why are some claims unassigned?</div><div class="help-a">Claims may be excluded due to future review dates, status mismatches, or agent caps being hit. Check the amber/red banners in Step 3.</div></div>
+      <div class="help-qa"><div class="help-q">What is Prior Queue Import for?</div><div class="help-a">Optional. Drop last session's agent XLSX files to balance related-group workloads across runs. Skip on your first use.</div></div>
+      <div class="help-qa"><div class="help-q">Can I re-run without re-uploading?</div><div class="help-a">Yes — hit "Re-run Distribution" in Step 3 or the sticky bar to redistribute with updated settings.</div></div>
+    </div>
+  </div>
+</div>
+<button id="helpToggleBtn" onclick="toggleHelpPanel()" title="Help">?</button>
 
 </body>
 </html>
