@@ -4172,7 +4172,12 @@ function getAllProfiles() {
 }
 
 function saveAllProfiles(profiles) {
-  localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+  try {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+  } catch(e) {
+    console.error('QD: saveAllProfiles failed:', e);
+    toast('⚠ Could not save team data — storage may be full. Try clearing browser cache.', 'error');
+  }
 }
 
 function _snapshotCurrentState() {
@@ -4427,7 +4432,11 @@ function switchToProfile(id) {
   saveCurrentProfile();
   const profiles = getAllProfiles();
   const p = profiles[id];
-  if (!p) return;
+  if (!p) {
+    toast('⚠ Team not found — storage may have been cleared. Refreshing teams…', 'error');
+    _bootstrapSeedProfiles();
+    return;
+  }
   _activeProfileId = id;
   localStorage.setItem(ACTIVE_PROFILE_KEY, id);
   state.files = []; state.allRows = []; state.distribution = {}; state.groups = {};
@@ -4564,12 +4573,13 @@ function _renderTeamChooser() {
   const profiles = getAllProfiles();
   const ids = Object.keys(profiles).sort((a,b) => (profiles[a].createdAt||0) - (profiles[b].createdAt||0));
   const list = document.getElementById('tcTeamList');
+  const btn = document.getElementById('tcConfirmBtn');
+  if (btn) btn.disabled = false; // always enable before any early return
   if (!list) return;
 
   // Always include "Team Yanny" (the null/default profile) as first option
-  const yannyActive = !_activeProfileId;
   const yannyPending = _tcPendingId === null;
-  const yannyAgents = window._DEFAULT_ROSTER_COUNT || 20;
+  const yannyAgents = DEFAULT_ROSTER.length;
 
   let html = `<button class="tc-team-btn ${yannyPending ? 'active-team' : ''}" onclick="_tcSelect(null)">
     <div class="tc-team-dot" style="background:var(--purple);box-shadow:0 0 8px rgba(168,85,247,0.6)"></div>
@@ -4596,8 +4606,6 @@ function _renderTeamChooser() {
   });
 
   list.innerHTML = html;
-  const btn = document.getElementById('tcConfirmBtn');
-  if (btn) btn.disabled = false; // always enabled — they can confirm current team too
 }
 
 function _tcSelect(id) {
@@ -4648,7 +4656,14 @@ function _updateTeamBanner() {
   } else {
     const profiles = getAllProfiles();
     const p = profiles[_activeProfileId];
-    if (!p) return;
+    if (!p) {
+      // Profile ID in localStorage points to a deleted profile — fall back to Yanny display
+      nameEl.textContent = 'Team Yanny';
+      nameEl.style.color = '#d8b4fe';
+      if (dotEl) { dotEl.style.background = 'var(--purple)'; dotEl.style.boxShadow = '0 0 8px rgba(168,85,247,0.8)'; }
+      if (countEl) countEl.textContent = DEFAULT_ROSTER.length + ' members';
+      return;
+    }
     nameEl.textContent = p.name;
     nameEl.style.color = p.color || '#d8b4fe';
     if (dotEl) { dotEl.style.background = p.color||'var(--purple)'; dotEl.style.boxShadow = `0 0 8px ${p.color||'var(--purple)'}99`; }
