@@ -1744,17 +1744,21 @@ function removeProvEntry(agentName, ai) {
 
 // ── PERSISTENCE ───────────────────────────────────────────────────────────────
 function saveSettings() {
-  const data = state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' }));
-  const payload = { 
-    agents: data, 
-    globalCap: state.globalCap ?? null,
-    statusCol: document.getElementById('statusCol')?.value || 'Status',
-    batch1Statuses: Array.from(document.querySelectorAll('#batch1Checkboxes input:checked')).map(cb => cb.value),
-    batch2Statuses: Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value),
-    batch3Statuses: Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value)
-  };
-  localStorage.setItem(ROSTER_KEY, JSON.stringify(payload));
-  localStorage.setItem(PROV_KEY, JSON.stringify(provAssignments));
+  // The legacy keys are a single shared slot — only Team Yanny (no active
+  // profile) may write them, otherwise teams overwrite each other's roster.
+  if (!_activeProfileId) {
+    const data = state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' }));
+    const payload = {
+      agents: data,
+      globalCap: state.globalCap ?? null,
+      statusCol: document.getElementById('statusCol')?.value || 'Status',
+      batch1Statuses: Array.from(document.querySelectorAll('#batch1Checkboxes input:checked')).map(cb => cb.value),
+      batch2Statuses: Array.from(document.querySelectorAll('#batch2Checkboxes input:checked')).map(cb => cb.value),
+      batch3Statuses: Array.from(document.querySelectorAll('#batch3Checkboxes input:checked')).map(cb => cb.value)
+    };
+    localStorage.setItem(ROSTER_KEY, JSON.stringify(payload));
+    localStorage.setItem(PROV_KEY, JSON.stringify(provAssignments));
+  }
   updateRosterBadge(true);
   markClean();
   toast(`Roster and providers saved`, 'success');
@@ -1764,6 +1768,10 @@ function saveSettings() {
 }
 
 function autoSaveSettingsIfExists() {
+  // On a named team, edits belong to that team's profile — never to the
+  // shared legacy keys (writing them there leaks this roster into Team Yanny
+  // and whichever team is on screen at next page load).
+  if (_activeProfileId) { saveCurrentProfile(); return; }
   if (localStorage.getItem(ROSTER_KEY)) {
     const data = state.agents.map(a => ({ name: a.name, color: a.color, cap: a.cap ?? null, included: a.included, batch: a.batch || '', role: a.role || 'TM' }));
     const payload = {
@@ -1844,7 +1852,31 @@ function updateRosterBadge(hasSaved) {
   if (clearBtn) clearBtn.style.display = hasSaved ? 'inline-flex' : 'none';
 }
 
+// One-time repair: older builds autosaved whichever team was on screen into
+// the shared legacy keys, so Team Yanny could load another team's roster.
+// If the legacy save contains no default-roster names but does contain seed
+// team members, it was written by that bug — discard it so Yanny reverts to
+// its real roster. (Defined as a function so it runs after all consts init.)
+function repairLegacySaveIfPoisoned() {
+  try {
+    const raw = localStorage.getItem(ROSTER_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    const list = Array.isArray(saved) ? saved : (saved.agents || []);
+    if (!list.length) return;
+    const defNames = new Set(DEFAULT_ROSTER.map(a => a.name));
+    const seedNames = new Set(SEED_PROFILE_DEFS.flatMap(d => d.members));
+    const hasDefault = list.some(a => defNames.has(a.name));
+    const hasSeed = list.some(a => seedNames.has(a.name));
+    if (!hasDefault && hasSeed) {
+      localStorage.removeItem(ROSTER_KEY);
+      localStorage.removeItem(PROV_KEY);
+    }
+  } catch(e) {}
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  repairLegacySaveIfPoisoned();
   loadSettings();
   updateRosterBadge(!!localStorage.getItem(ROSTER_KEY));
   renderPresetChips();
@@ -4495,24 +4527,54 @@ const SEED_PROFILE_DEFS = [
   },
 ];
 
+const SEED_DEFAULT_STATUSES = ['Bill Filed','Bill POR','Commercial Bill Filed','Patient Pursuit','EOB Requested','Validation Pending - Level 1'];
+
 function _bootstrapSeedProfiles() {
   const profiles = getAllProfiles();
   let dirty = false;
   const COLORS_LOCAL = ['#a855f7','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#22d3ee','#f97316','#6366f1','#14b8a6'];
   SEED_PROFILE_DEFS.forEach((def, defIdx) => {
-    if (profiles[def.id]) return; // already exists — don't overwrite user edits
     const masterList = getMasterAgentList();
-    const agentObjects = def.members.map((name, i) => {
+    const buildAgents = () => def.members.map((name, i) => {
       const found = masterList.find(a => a.name === name);
       return { name, color: COLORS_LOCAL[i % COLORS_LOCAL.length], included: true, cap: null, batch: found ? (found.batch || '') : '', role: 'TM' };
     });
+
+    const existing = profiles[def.id];
+    if (existing) {
+      // Repair pass for profiles saved by older builds. An old bug saved the
+      // on-screen roster (often another team's) into the profile being left,
+      // so a seed team whose members share NO names with its intended list
+      // is poisoned — restore the real member list. Partial overlap means a
+      // legitimate manager edit, so leave it alone.
+      const snap = existing.snapshot || (existing.snapshot = {});
+      const names = (snap.agents || []).map(a => a.name);
+      const overlap = names.filter(n => def.members.includes(n)).length;
+      if (!names.length || overlap === 0) {
+        snap.agents = buildAgents();
+        snap.provAssignments = {};
+        existing.savedAt = Date.now();
+        dirty = true;
+      }
+      // Older builds seeded empty status lists, which unchecked every status
+      // pill on switch — backfill the standard defaults.
+      if (!(snap.batch1Statuses||[]).length && !(snap.batch2Statuses||[]).length && !(snap.batch3Statuses||[]).length) {
+        snap.batch1Statuses = [...SEED_DEFAULT_STATUSES];
+        snap.batch2Statuses = [...SEED_DEFAULT_STATUSES];
+        snap.batch3Statuses = [...SEED_DEFAULT_STATUSES];
+        dirty = true;
+      }
+      return;
+    }
+
     profiles[def.id] = {
       id: def.id, name: def.name, color: def.color,
       createdAt: 1000 + defIdx, // stable low timestamp so they sort consistently
       savedAt: Date.now(),
       snapshot: {
-        agents: agentObjects, globalCap: null, statusCol: 'Status',
-        batch1Statuses: [], batch2Statuses: [], batch3Statuses: [], provAssignments: {},
+        agents: buildAgents(), globalCap: null, statusCol: 'Status',
+        batch1Statuses: [...SEED_DEFAULT_STATUSES], batch2Statuses: [...SEED_DEFAULT_STATUSES], batch3Statuses: [...SEED_DEFAULT_STATUSES],
+        provAssignments: {},
         excludeBilingual: 'yes', relatedPct: 100,
       },
     };
@@ -4589,11 +4651,15 @@ function confirmTeamChoice() {
   }
   if (_tcPendingId === null) {
     // Switch to Team Yanny (default/null profile)
+    saveCurrentProfile(); // keep edits made on the team we're leaving
     closeTeamChooser(); // close before mutations so a render throw can't leave modal open
     _activeProfileId = null;
     localStorage.removeItem(ACTIVE_PROFILE_KEY);
-    state.agents = DEFAULT_ROSTER.map((a,i) => ({ name:a.name, color:COLORS[i%COLORS.length], included:true, cap:null, batch:a.batch||'', role:'TM' }));
-    provAssignments = JSON.parse(JSON.stringify(DEFAULT_PROV_ASSIGNMENTS));
+    state.files = []; state.allRows = []; state.distribution = {}; state.groups = {};
+    state.unassignedReasons = {}; state.priorRelatedCounts = {};
+    const flEl = document.getElementById('fileList'); if (flEl) flEl.innerHTML = '';
+    state.agents = [];
+    loadSettings(); // Yanny's saved legacy roster + providers, or the defaults
     renderRosterTable();
     renderAbsentPanel && renderAbsentPanel();
     updateAbsentBadge && updateAbsentBadge();
@@ -4633,6 +4699,13 @@ function initProfileSystem() {
   const savedActive = localStorage.getItem(ACTIVE_PROFILE_KEY);
   const profiles = getAllProfiles();
   _activeProfileId = (savedActive && profiles[savedActive]) ? savedActive : null;
+  // Apply the active team's snapshot so the UI matches the saved team.
+  // Without this, loadSettings()'s legacy roster (last autosave — possibly a
+  // different team) stays on screen, and the next switch would save that
+  // wrong roster into this profile via saveCurrentProfile().
+  if (_activeProfileId && profiles[_activeProfileId].snapshot) {
+    _applySnapshot(profiles[_activeProfileId].snapshot);
+  }
   _updateProfilePill();
   _updateTeamBanner();
   if (localStorage.getItem(WELCOME_DISMISSED_KEY)) {
