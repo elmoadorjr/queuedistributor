@@ -1075,9 +1075,9 @@
         <div class="config-section-head">Column Mapping</div>
         <div class="config-grid">
           <div class="config-item">
-            <label>Related Claims Key <span class="help-icon" data-tip="How the tool identifies that two claims belong to the same patient. The recommended option uses all 4 fields: SSN + DOB + First Name + Last Name. When SSN is absent, DOB + Full Name is used — so no claim is left ungrouped.">?</span></label>
+            <label>Related Claims Key <span class="help-icon" data-tip="How the tool identifies that two claims belong to the same patient. Smart mode (recommended) links claims if any two of three identifiers agree: SSN+Name, SSN+DOB, or Name+DOB — so partial records still group correctly. Conflicting names on the same SSN are never merged.">?</span></label>
             <select class="input-text" id="relatedKey">
-              <option value="ssn_dob_name">SSN + DOB + Full Name (Recommended)</option>
+              <option value="ssn_dob_name">Smart Match — SSN/DOB/Name (Recommended)</option>
               <option value="ssn_dob">Last 4 SSN + Date of Birth</option>
               <option value="ssn_name">Last 4 SSN + Last Name</option>
               <option value="acct">Patient Account Number</option>
@@ -2267,20 +2267,40 @@ function addAgent() {
 }
 
 // ── DISTRIBUTION LOGIC ────────────────────────────────────────────────────────
-function getPatientKey(row) {
-  const method = document.getElementById('relatedKey')?.value || 'ssn_dob_name';
+
+// ── SMART RELATED-CLAIMS GROUPING (Union-Find) ────────────────────────────────
+// Grouping rules (ssn_dob_name mode):
+//   LINK if any of these pairs match:
+//     • SSN + Name (both present on both claims, names must agree)
+//     • SSN + DOB  (both present on both claims)
+//     • Name + DOB (both present on both claims)
+//   CONFLICT: same SSN but different non-empty names → do NOT link
+//   SSN alone (no name AND no DOB on either) → not enough to link
+//
+// For legacy modes (ssn_dob, ssn_name, name_dob, acct) the old single-key
+// logic is retained unchanged — only ssn_dob_name uses Union-Find.
+
+function _extractFields(row) {
   const ssn  = String(row['Last 4 SSN']||'').trim();
   const dob  = String(row['Patient DOB']||'').trim();
   const fn   = String(row['Patient FN']||'').trim().toUpperCase();
   const ln   = String(row['Patient LN']||'').trim().toUpperCase();
   const fullName = fn && ln ? `${fn}_${ln}` : (ln || fn);
   const acct = String(row['Patient Acct']||'').trim();
+  return { ssn, dob, fullName, ln, acct };
+}
+
+// Legacy single-key fallback (non-smart modes)
+function getPatientKey(row) {
+  const method = document.getElementById('relatedKey')?.value || 'ssn_dob_name';
+  const { ssn, dob, fullName, ln, acct } = _extractFields(row);
   switch(method) {
     case 'ssn_dob_name':
-      // All 4 fields form the key. When SSN is absent, DOB + Full Name still
-      // uniquely identifies the patient — no claim is left ungrouped.
+      // In smart mode this function is only used post-grouping to look up
+      // a canonical group ID. Return the best available key for that purpose.
       if (ssn && dob && fullName) return `${ssn}__${dob}__${fullName}`;
       if (ssn && dob)             return `${ssn}__${dob}`;
+      if (ssn && fullName)        return `${ssn}__${fullName}`;
       if (dob && fullName)        return `${dob}__${fullName}`;
       return null;
     case 'ssn_dob':  return (ssn&&dob)?`${ssn}__${dob}`:null;
@@ -2289,6 +2309,130 @@ function getPatientKey(row) {
     case 'name_dob': return (fullName&&dob)?`${fullName}__${dob}`:null;
     default: return null;
   }
+}
+
+// Union-Find helpers
+function _ufFind(parent, i) {
+  if (parent[i] !== i) parent[i] = _ufFind(parent, parent[i]);
+  return parent[i];
+}
+function _ufUnion(parent, rank, a, b) {
+  const ra = _ufFind(parent, a), rb = _ufFind(parent, b);
+  if (ra === rb) return;
+  if ((rank[ra]||0) < (rank[rb]||0)) { parent[ra] = rb; }
+  else if ((rank[ra]||0) > (rank[rb]||0)) { parent[rb] = ra; }
+  else { parent[rb] = ra; rank[ra] = (rank[ra]||0) + 1; }
+}
+
+// Build groups using Union-Find for ssn_dob_name mode.
+// Returns { groups: { canonicalKey -> [rows] }, unkeyed: [rows] }
+// Also attaches row._groupKey for post-distribution pin lookups.
+function buildSmartGroups(rows) {
+  const method = document.getElementById('relatedKey')?.value || 'ssn_dob_name';
+
+  // ── Non-smart modes: use original key-bucket approach ──────────────────────
+  if (method !== 'ssn_dob_name') {
+    const groups = {}, unkeyed = [];
+    rows.forEach(row => {
+      const k = getPatientKey(row);
+      if (k) { if (!groups[k]) groups[k] = []; groups[k].push(row); row._groupKey = k; }
+      else { unkeyed.push(row); row._groupKey = null; }
+    });
+    return { groups, unkeyed };
+  }
+
+  // ── Smart mode: Union-Find ─────────────────────────────────────────────────
+  const n = rows.length;
+  const parent = rows.map((_, i) => i);
+  const rank   = new Array(n).fill(0);
+
+  // Index maps: ssnName, ssnDob, nameDob → [row indices]
+  // ssnName uses "ssn__name" but we must check name agreement before merging.
+  const bySsnDob  = {}; // "ssn__dob"   → [idx]
+  const byNameDob = {}; // "name__dob"  → [idx]
+  const bySsn     = {}; // "ssn"        → [idx]  (for name-conflict detection)
+
+  rows.forEach((row, i) => {
+    const { ssn, dob, fullName } = _extractFields(row);
+
+    if (ssn && dob) {
+      const k = `${ssn}__${dob}`;
+      if (!bySsnDob[k]) bySsnDob[k] = [];
+      bySsnDob[k].push(i);
+    }
+    if (fullName && dob) {
+      const k = `${fullName}__${dob}`;
+      if (!byNameDob[k]) byNameDob[k] = [];
+      byNameDob[k].push(i);
+    }
+    if (ssn) {
+      if (!bySsn[ssn]) bySsn[ssn] = [];
+      bySsn[ssn].push(i);
+    }
+  });
+
+  // Merge: SSN + DOB match
+  Object.values(bySsnDob).forEach(idxs => {
+    for (let j = 1; j < idxs.length; j++) _ufUnion(parent, rank, idxs[0], idxs[j]);
+  });
+
+  // Merge: Name + DOB match
+  Object.values(byNameDob).forEach(idxs => {
+    for (let j = 1; j < idxs.length; j++) _ufUnion(parent, rank, idxs[0], idxs[j]);
+  });
+
+  // Merge: SSN + Name match (same SSN bucket, same non-empty name)
+  // Conflict check: if SSN bucket has >1 distinct non-empty names → skip SSN-name linking
+  Object.entries(bySsn).forEach(([ssn, idxs]) => {
+    // Collect all distinct non-empty names in this SSN bucket
+    const names = idxs.map(i => _extractFields(rows[i]).fullName).filter(Boolean);
+    const uniqueNames = [...new Set(names)];
+    if (uniqueNames.length > 1) return; // name conflict — don't link via SSN+name
+    if (uniqueNames.length === 0) return; // no names at all — SSN alone, skip
+    // All claims with this SSN share the same name → merge them
+    const nameMatch = idxs.filter(i => _extractFields(rows[i]).fullName === uniqueNames[0]);
+    for (let j = 1; j < nameMatch.length; j++) _ufUnion(parent, rank, nameMatch[0], nameMatch[j]);
+  });
+
+  // Collect groups by root
+  const rootToIdxs = {};
+  rows.forEach((_, i) => {
+    const r = _ufFind(parent, i);
+    if (!rootToIdxs[r]) rootToIdxs[r] = [];
+    rootToIdxs[r].push(i);
+  });
+
+  const groups = {}, unkeyed = [];
+  Object.values(rootToIdxs).forEach(idxs => {
+    // A group needs at least one claim with a linkable key; otherwise unkeyed
+    // Build a canonical key from the richest claim in the group
+    let bestKey = null;
+    for (const i of idxs) {
+      const k = getPatientKey(rows[i]);
+      if (k && (!bestKey || k.length > bestKey.length)) bestKey = k;
+    }
+    if (!bestKey || idxs.length === 1) {
+      // Check if the lone claim has any key at all
+      const solo = rows[idxs[0]];
+      const k = getPatientKey(solo);
+      if (k) {
+        // Single claim with a valid key — goes into groups as a singleton
+        // (will be split into singles later by length check)
+        solo._groupKey = k;
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(solo);
+      } else {
+        solo._groupKey = null;
+        unkeyed.push(solo);
+      }
+      return;
+    }
+    idxs.forEach(i => { rows[i]._groupKey = bestKey; });
+    if (!groups[bestKey]) groups[bestKey] = [];
+    idxs.forEach(i => groups[bestKey].push(rows[i]));
+  });
+
+  return { groups, unkeyed };
 }
 
 function setReviewDateToday() {
@@ -2454,12 +2598,7 @@ function runDistribution() {
   // Sort oldest-first so agents receive older claims first (prioritizes stale work)
   workingRows = sortRowsByAge(workingRows, dateCol);
 
-  const groups={}; const unkeyed=[];
-  workingRows.forEach(row => {
-    const k=getPatientKey(row);
-    if (k) { if (!groups[k]) groups[k]=[]; groups[k].push(row); }
-    else unkeyed.push(row);
-  });
+  const { groups, unkeyed } = buildSmartGroups(workingRows);
   state.groups = groups;
 
   // ── PROPORTIONAL STATUS SETUP ────────────────────────────────────────────
@@ -2587,7 +2726,7 @@ function runDistribution() {
       if (s) _agentStatusCounts[t][s] = (_agentStatusCounts[t][s] || 0) + 1;
     });
     if (matchType === 'exact') exactMatches += groupSize;
-    const groupKey = getPatientKey(group[0]);
+    const groupKey = group[0]._groupKey || getPatientKey(group[0]);
     if (groupKey) groupAssignedTo[groupKey] = t;
     group.forEach(r=>buckets[t].push({...r,_gid:gid,_rel:true,_match:matchType}));
   });
@@ -2595,7 +2734,7 @@ function runDistribution() {
   singles.forEach(row => {
     // If this single shares a patient key with an already-assigned related group,
     // pin it to that same agent to prevent cross-agent work overlap.
-    const rowKey = getPatientKey(row);
+    const rowKey = row._groupKey || getPatientKey(row);
     const pinnedAgent = rowKey ? groupAssignedTo[rowKey] : null;
 
     let result;
