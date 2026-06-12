@@ -2395,22 +2395,7 @@ function smartAssign(agentObjs, buckets, row, size, statusRules, statusCol, grou
     if (score > bestScore) { bestScore = score; bestAgent = a.name; }
   });
 
-  // Provider-match pass: only consider agents within MATCH_TOLERANCE of lightest,
-  // ensuring provider preference doesn't override proportional fairness.
-  let bestMatch = null, bestMatchType = 'none', bestMatchProjected = Infinity;
-  eligible.forEach(a => {
-    const projected = buckets[a.name].length + size;
-    if (projected > lightestProjected + MATCH_TOLERANCE) return; // fairness gate
-
-    const mt = getMatchType(a.name, row);
-    if (mt === 'exact' && (bestMatchType !== 'exact' || projected < bestMatchProjected)) {
-      bestMatch = a.name; bestMatchType = 'exact'; bestMatchProjected = projected;
-    } else if (mt === 'provider' && bestMatchType !== 'exact' && (bestMatchType !== 'provider' || projected < bestMatchProjected)) {
-      bestMatch = a.name; bestMatchType = 'provider'; bestMatchProjected = projected;
-    }
-  });
-
-  return { agent: bestMatch || bestAgent, matchType: bestMatch ? bestMatchType : 'none' };
+  return { agent: bestAgent, matchType: 'none' };
 }
 
 function runDistribution() {
@@ -2601,7 +2586,7 @@ function runDistribution() {
       const s = String(r[statusCol]||'').toUpperCase();
       if (s) _agentStatusCounts[t][s] = (_agentStatusCounts[t][s] || 0) + 1;
     });
-    if (matchType === 'exact') exactMatches += groupSize; else if (matchType === 'provider') provMatches += groupSize;
+    if (matchType === 'exact') exactMatches += groupSize;
     const groupKey = getPatientKey(group[0]);
     if (groupKey) groupAssignedTo[groupKey] = t;
     group.forEach(r=>buckets[t].push({...r,_gid:gid,_rel:true,_match:matchType}));
@@ -2628,9 +2613,7 @@ function runDistribution() {
       const pinnedLoad = buckets[pinnedAgent]?.length ?? 0;
       const fairnessOk = (pinnedLoad - lightestBucket) <= MATCH_TOLERANCE * 3;
       if (pinnedAgentObj && hardCapOk && fairnessOk) {
-        const mt = getMatchType(pinnedAgent, row);
-        if (mt === 'exact') exactMatches++; else if (mt === 'provider') provMatches++;
-        buckets[pinnedAgent].push({...row, _gid: null, _rel: true, _match: mt, _pinnedToGroup: true});
+        buckets[pinnedAgent].push({...row, _gid: null, _rel: true, _match: 'none', _pinnedToGroup: true});
         agentRelClaimCounts[pinnedAgent] = (agentRelClaimCounts[pinnedAgent] || 0) + 1;
         // Track status for proportional scoring
         if (!_agentStatusCounts[pinnedAgent]) _agentStatusCounts[pinnedAgent] = {};
@@ -2650,7 +2633,6 @@ function runDistribution() {
       return; 
     }
     const { agent: t, matchType } = result;
-    if (matchType === 'exact') exactMatches++; else if (matchType === 'provider') provMatches++;
     // Track status for proportional scoring
     if (!_agentStatusCounts[t]) _agentStatusCounts[t] = {};
     if (singleStatus) _agentStatusCounts[t][singleStatus] = (_agentStatusCounts[t][singleStatus] || 0) + 1;
