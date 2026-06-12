@@ -898,8 +898,8 @@
   </div>
 
   <!-- ── TEAM CHOOSER MODAL ─────────────────────────────────────────── -->
-  <div id="teamChooserModal" class="hidden">
-    <div class="tc-dialog">
+  <div id="teamChooserModal" class="hidden" onclick="closeTeamChooser()">
+    <div class="tc-dialog" onclick="event.stopPropagation()">
       <div class="tc-header">
         <div class="tc-icon">👥</div>
         <div class="tc-title">Who's working today?</div>
@@ -1295,6 +1295,8 @@ Leave all checked for normal use.">?</span></div>
 <div id="toast"></div>
 
 <script>
+let _activeProfileId = null;
+const PROFILES_MIGRATED_V2_KEY = 'qd_profiles_migrated_v2';
 // ── Collapse helpers ──────────────────────────────────────────────────────────
 function toggleRosterPanel(e) {
   toggleCollapsible('rosterPanelBody', 'rosterCollapseIcon', 'roster');
@@ -3961,6 +3963,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeRunModal();
     closeProfileModal();
+    closeTeamChooser();
     return;
   }
 
@@ -4106,6 +4109,27 @@ const MASTER_AGENT_LIST_SEED = [
   { name: 'Palomita, Mark Herson',     batch: '' },
   { name: 'Baleva, Martina Alexi',     batch: '' },
   { name: 'Estember, Gell Rose',       batch: '' },
+  // ── TEAM SHERNAN ─────────────────────────────────────────────────
+  { name: 'Aguirre, Marylle Joy',      batch: '' },
+  { name: 'Alamon, Bliss Lorraine',    batch: '' },
+  { name: 'Anota, Necha',              batch: '' },
+  { name: 'Argenio, Jesabel',          batch: '' },
+  { name: 'Basco, Hannah Gwyneth',     batch: '' },
+  { name: 'Delina, Alliza Marie',      batch: '' },
+  { name: 'Estrella, Jeannice',        batch: '' },
+  { name: 'Ferrer, April Dawn',        batch: '' },
+  { name: 'Frial, Kenny',              batch: '' },
+  { name: 'Gecos, Vanessa Mae',        batch: '' },
+  { name: 'Kue, Prince Teofilo',       batch: '' },
+  { name: 'Lara, Mary Kris',           batch: '' },
+  { name: 'Montecino, Shainah Kate',   batch: '' },
+  { name: 'Ochida, Jamelyn Joy',       batch: '' },
+  { name: 'Olandio, Norielle',         batch: '' },
+  { name: 'Sartorio, Joremae',         batch: '' },
+  { name: 'Sorongon, Lunavic',         batch: '' },
+  { name: 'Tayo, Marco Angelo',        batch: '' },
+  { name: 'Valdemar, Ruby Pearl',      batch: '' },
+  { name: 'Villanueva, Vicky',         batch: '' },
 ];
 
 const MASTER_ROSTER_KEY = 'qd_master_roster_v1'; // localStorage key for extra/removed agents
@@ -4157,7 +4181,7 @@ function masterRosterRemove(name) {
 // (replaced inline below, but kept as safety net)
 const MASTER_AGENT_LIST = getMasterAgentList();
 
-let _activeProfileId = null;
+let _editingProfileId = null;
 
 function _genProfileId() {
   return 'prof_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -4510,10 +4534,23 @@ const SEED_PROFILE_DEFS = [
       'Palomita, Mark Herson','Baleva, Martina Alexi','Estember, Gell Rose',
     ],
   },
+  {
+    id: 'prof_seed_shernan',
+    name: 'Team Shernan',
+    color: '#ec4899',
+    members: [
+      'Aguirre, Marylle Joy','Alamon, Bliss Lorraine','Anota, Necha',
+      'Argenio, Jesabel','Basco, Hannah Gwyneth','Delina, Alliza Marie',
+      'Estrella, Jeannice','Ferrer, April Dawn','Frial, Kenny',
+      'Gecos, Vanessa Mae','Kue, Prince Teofilo','Lara, Mary Kris',
+      'Montecino, Shainah Kate','Ochida, Jamelyn Joy','Olandio, Norielle',
+      'Sartorio, Joremae','Sorongon, Lunavic','Tayo, Marco Angelo',
+      'Valdemar, Ruby Pearl','Villanueva, Vicky',
+    ],
+  },
 ];
 
 const SEED_DEFAULT_STATUSES = ['Bill Filed','Bill POR','Commercial Bill Filed','Patient Pursuit','EOB Requested','Validation Pending - Level 1'];
-const PROFILES_MIGRATED_V2_KEY = 'qd_profiles_migrated_v2';
 
 // One-time migration: the old autosave bug wrote whatever team was on screen
 // into the shared legacy key AND into whichever profile was being left,
@@ -4813,8 +4850,6 @@ function editProfileMembers(id) {
   const currentNames = (p.snapshot?.agents || []).map(a => a.name);
   openRosterPicker(currentNames);
 }
-
-let _editingProfileId = null;
 
 function saveEditedProfileMembers() {
   const id = _editingProfileId;
