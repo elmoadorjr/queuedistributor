@@ -194,22 +194,11 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-  /* ── ALLOCATION FILTER PANEL ────────────────────────────────────────── */
+  /* ── ALLOCATION SCOPE PANEL ─────────────────────────────────────────── */
   .alloc-panel { background: rgba(245,158,11,0.05); border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 14px 18px; margin-top: 14px; }
-  .alloc-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .alloc-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
   .alloc-panel-title { font-size: 13px; font-weight: 700; color: #fde68a; }
   .alloc-panel-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
-  .alloc-chip-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
-  .alloc-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 11px; font-size: 12px; cursor: pointer; transition: all 0.18s; color: var(--text); user-select: none; font-family: var(--sans); }
-  .alloc-chip:hover { border-color: var(--amber); }
-  .alloc-chip.selected { border-color: var(--amber); background: rgba(245,158,11,0.12); color: #fde68a; font-weight: 700; }
-  .alloc-chip input { margin: 0; cursor: pointer; accent-color: var(--amber); }
-  .alloc-chip-count { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 2px; }
-  .alloc-chip.selected .alloc-chip-count { color: #fde68a; }
-  .alloc-all-btn { font-family: var(--mono); font-size: 10px; background: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
-  .alloc-all-btn:hover { border-color: var(--amber); color: #fde68a; }
-  .alloc-active-banner { font-family: var(--mono); font-size: 11px; color: var(--amber); margin-top: 8px; display: none; }
-  .alloc-panel.has-selection .alloc-active-banner { display: block; }
 
   /* ── TEAM PROFILE SWITCHER ──────────────────────────────────────────────── */
   /* Legacy pill (kept for compat, hidden) */
@@ -971,14 +960,16 @@
         <!-- Allocation / Team Filter (shown only for Delinquent Follow-Up format) -->
         <div class="alloc-panel hidden" id="allocFilterPanel">
           <div class="alloc-panel-head">
-            <span style="font-size:18px">🏷️</span>
-            <div class="alloc-panel-title">Allocation Filter <span style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);padding:2px 7px;border-radius:10px;letter-spacing:1px;margin-left:4px">DELINQUENT FORMAT</span></div>
-            <button class="alloc-all-btn" onclick="allocSelectAll()" title="Select all allocations">Select All</button>
-            <button class="alloc-all-btn" onclick="allocClearAll()" title="Clear all (distribute everything)" style="margin-left:0">Clear All</button>
+            <span style="font-size:16px">🏷️</span>
+            <div class="alloc-panel-title">Allocation Scope</div>
           </div>
-          <div class="alloc-panel-sub">This file contains an <strong style="color:#fde68a">Allocation</strong> or <strong style="color:#fde68a">Team Name</strong> column. Select one or more values below to restrict the distribution to only those claims. Leave all unchecked to distribute the full queue.</div>
-          <div class="alloc-chip-grid" id="allocChipGrid"></div>
-          <div class="alloc-active-banner" id="allocActiveBanner">⚡ Filter active — only selected allocation(s) will be distributed</div>
+          <div class="alloc-panel-sub">This file has an <strong style="color:#fde68a">Allocation</strong> field. Pick a value to restrict this run to only those rows — or leave at "All" to distribute everything.</div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+            <select class="input-text" id="allocScopeSelect" onchange="onAllocScopeChange()" style="max-width:260px">
+              <option value="">— All (no filter) —</option>
+            </select>
+            <span id="allocScopeCount" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+          </div>
         </div>
 
         <!-- Prior Queue Import -->
@@ -1119,6 +1110,7 @@
             <div style="display:flex;gap:6px;align-items:center">
               <input type="date" class="input-text" id="reviewDateFilter" style="flex:1;cursor:pointer">
               <button class="btn btn-secondary btn-sm" onclick="setReviewDateToday()" title="Sets the Review Date filter to today's date" style="height: 38px;">Set to Today (PH) 🇵🇭</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('reviewDateFilter').value=''" title="Clear date filter — distribute all dates" style="height:38px;color:var(--muted)">✕ Clear</button>
             </div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:5px;letter-spacing:0.5px">Leave blank = include all dates. Claims reviewed <em>after</em> this date will be excluded from distribution.</div>
           </div>
@@ -2086,80 +2078,56 @@ function _applyDelinquentDefaults() {
   toast('📋 Delinquent Follow-Up format detected — columns auto-mapped', 'info');
 }
 
-// ── ALLOCATION FILTER ─────────────────────────────────────────────────────────
-// Stores { value -> count } of all allocation/team values found across loaded rows
-let _allocCounts = {};
-// The active filter set (empty = no filter = distribute everything)
-let _allocSelected = new Set();
+// ── ALLOCATION SCOPE ──────────────────────────────────────────────────────────
+// Simple dropdown: pick one Allocation value (or blank = all) to scope the run.
+let _allocCounts = {}; // { value -> count }
 
 function _rebuildAllocCounts() {
   _allocCounts = {};
   state.allRows.forEach(r => {
-    const val = String(r['Allocation'] || r['Team Name'] || '').trim();
+    const val = String(r['Allocation'] || '').trim();
     if (val) _allocCounts[val] = (_allocCounts[val] || 0) + 1;
   });
 }
 
 function _renderAllocPanel() {
-  const panel = document.getElementById('allocFilterPanel');
-  const grid  = document.getElementById('allocChipGrid');
-  const banner = document.getElementById('allocActiveBanner');
-  if (!panel || !grid) return;
+  const panel  = document.getElementById('allocFilterPanel');
+  const sel    = document.getElementById('allocScopeSelect');
+  if (!panel || !sel) return;
 
   const entries = Object.entries(_allocCounts).sort((a, b) => a[0].localeCompare(b[0]));
-  if (entries.length === 0) {
-    panel.classList.add('hidden');
-    return;
-  }
+  if (entries.length === 0) { panel.classList.add('hidden'); return; }
 
   panel.classList.remove('hidden');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— All (no filter) —</option>'
+    + entries.map(([v, c]) => {
+        const s = v === current ? ' selected' : '';
+        return '<option value="' + v.replace(/"/g, '&quot;') + '"' + s + '>' + v + ' (' + c.toLocaleString() + ' claims)</option>';
+      }).join('');
+  onAllocScopeChange();
+}
 
-  grid.innerHTML = entries.map(([val, cnt]) => {
-    const checked = _allocSelected.has(val);
-    const esc = val.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-    return `<label class="alloc-chip${checked ? ' selected' : ''}" onclick="allocToggle(this, '${esc.replace(/'/g,"\\'")}')">
-      <input type="checkbox" ${checked ? 'checked' : ''} style="display:none">
-      <span>${esc}</span><span class="alloc-chip-count">(${cnt.toLocaleString()})</span>
-    </label>`;
-  }).join('');
-
-  // Toggle has-selection class for the active banner
-  if (_allocSelected.size > 0) {
-    panel.classList.add('has-selection');
-    const names = [..._allocSelected].join(', ');
-    const total = [..._allocSelected].reduce((s, v) => s + (_allocCounts[v] || 0), 0);
-    banner.textContent = `⚡ Filter active — distributing ${total.toLocaleString()} claims from: ${names}`;
+function onAllocScopeChange() {
+  const sel   = document.getElementById('allocScopeSelect');
+  const count = document.getElementById('allocScopeCount');
+  if (!sel || !count) return;
+  const val = sel.value;
+  if (val && _allocCounts[val] !== undefined) {
+    count.textContent = '→ ' + _allocCounts[val].toLocaleString() + ' claims in scope';
+    count.style.color = 'var(--amber)';
   } else {
-    panel.classList.remove('has-selection');
-    banner.textContent = '⚡ Filter active — only selected allocation(s) will be distributed';
+    count.textContent = '';
   }
 }
 
-function allocToggle(labelEl, val) {
-  if (_allocSelected.has(val)) {
-    _allocSelected.delete(val);
-    labelEl.classList.remove('selected');
-  } else {
-    _allocSelected.add(val);
-    labelEl.classList.add('selected');
-  }
-  _renderAllocPanel();
+// Returns the active allocation scope value, or '' for no filter
+function getAllocScope() {
+  return (document.getElementById('allocScopeSelect')?.value || '').trim();
 }
-
-function allocSelectAll() {
-  Object.keys(_allocCounts).forEach(v => _allocSelected.add(v));
-  _renderAllocPanel();
-}
-
-function allocClearAll() {
-  _allocSelected.clear();
-  _renderAllocPanel();
-}
-
-// Returns the active allocation filter set (empty Set = no filter)
-function getAllocFilter() { return _allocSelected; }
 
 function handleFiles(files) {
+
   [...files].forEach(file => {
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['csv','xlsx','xls'].includes(ext)) { toast('Unsupported: ' + file.name, 'error'); return; }
@@ -2248,10 +2216,7 @@ function mergeAllRows() {
   const info=document.getElementById('step1-info');
   btn.disabled = state.allRows.length===0;
   info.textContent = state.allRows.length ? `${state.allRows.length.toLocaleString()} unique claims loaded` : '';
-  // Rebuild allocation filter panel whenever rows change
   _rebuildAllocCounts();
-  // Remove any selected allocations that no longer exist in the data
-  [..._allocSelected].forEach(v => { if (!_allocCounts[v]) _allocSelected.delete(v); });
   _renderAllocPanel();
 }
 
@@ -2314,12 +2279,8 @@ function showRunModal() {
   const statsEl = document.getElementById('runModalStats');
   const subEl = document.getElementById('runModalSub');
 
-  const allocFilter = getAllocFilter();
-  const allocLabel = allocFilter.size > 0 ? [...allocFilter].join(', ') : 'All';
-  const allocColor = allocFilter.size > 0 ? 'var(--amber)' : 'var(--muted)';
-  const allocClaims = allocFilter.size > 0
-    ? [...allocFilter].reduce((s, v) => s + (_allocCounts[v] || 0), 0)
-    : state.allRows.length;
+  const allocScope = getAllocScope();
+  const allocClaims = allocScope ? (_allocCounts[allocScope] || 0) : state.allRows.length;
 
   subEl.textContent = `${activeAgents.length} agents active${absentAgents.length ? `, ${absentAgents.length} absent (${absentAgents.map(a=>a.name.split(' ')[0]).join(', ')})` : ''}. Review the run parameters before committing.`;
 
@@ -2328,10 +2289,10 @@ function showRunModal() {
     <div class="run-modal-stat"><div class="run-modal-stat-label">Active Agents</div><div class="run-modal-stat-val" style="color:var(--green)">${activeAgents.length}</div></div>
     <div class="run-modal-stat"><div class="run-modal-stat-label">Global Cap</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:16px">${globalCap >= 9999 ? '∞ No limit' : globalCap}</div></div>
     <div class="run-modal-stat"><div class="run-modal-stat-label">Review Filter</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:14px">${filterDate || 'None'}</div></div>
-  ` + (allocFilter.size > 0
+  ` + (allocScope
     ? '<div class="run-modal-stat" style="grid-column:1/-1;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.07)">'
-      + '<div class="run-modal-stat-label" style="color:var(--amber)">🏷️ Allocation Filter</div>'
-      + '<div class="run-modal-stat-val" style="color:' + allocColor + ';font-size:13px;line-height:1.4">' + allocLabel + '</div>'
+      + '<div class="run-modal-stat-label" style="color:var(--amber)">🏷️ Allocation Scope</div>'
+      + '<div class="run-modal-stat-val" style="color:var(--amber);font-size:16px">' + allocScope + '</div>'
       + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">' + allocClaims.toLocaleString() + ' claims in scope</div>'
       + '</div>'
     : '');
@@ -2784,15 +2745,15 @@ function runDistribution() {
   state.filteredOutBilingual = filteredOutBilingual;
   state.dateColUsed = filterDateVal ? dateCol : null;
 
-  // ── Allocation / Team Filter ──────────────────────────────────────────────
-  const allocFilter = getAllocFilter();
+  // ── Allocation Scope ──────────────────────────────────────────────────────
+  const allocScope = getAllocScope();
   let filteredOutAlloc = 0;
-  if (allocFilter.size > 0) {
+  if (allocScope) {
     workingRows = workingRows.filter(row => {
-      const val = String(row['Allocation'] || row['Team Name'] || '').trim();
-      if (!allocFilter.has(val)) {
+      const val = String(row['Allocation'] || '').trim();
+      if (val !== allocScope) {
         filteredOutAlloc++;
-        state.unassignedReasons[row.ClaimID] = `Filtered: Allocation "${val}" not selected`;
+        state.unassignedReasons[row.ClaimID] = 'Filtered: Allocation "' + val + '" not in scope';
         return false;
       }
       return true;
@@ -3084,8 +3045,8 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
   if (state.filteredOutDate > 0) banners += `<div class="filter-banner">📅 <strong>${state.filteredOutDate.toLocaleString()} claim${state.filteredOutDate!==1?'s':''}</strong> excluded — Review Date beyond cutoff</div>`;
   if (state.filteredOutStatus > 0) banners += `<div class="filter-banner red">🚫 <strong>${state.filteredOutStatus.toLocaleString()} claim${state.filteredOutStatus!==1?'s':''}</strong> excluded — Status not allowed by active agents' batches</div>`;
   if (state.filteredOutAlloc > 0) {
-    const activeAllocs = [...getAllocFilter()].join(', ');
-    banners += `<div class="filter-banner amber">🏷️ <strong>${state.filteredOutAlloc.toLocaleString()} claim${state.filteredOutAlloc!==1?'s':''}</strong> excluded — Allocation filter active: <strong>${activeAllocs}</strong></div>`;
+    const scopeName = getAllocScope();
+    banners += `<div class="filter-banner amber">🏷️ <strong>${state.filteredOutAlloc.toLocaleString()} claim${state.filteredOutAlloc!==1?'s':''}</strong> excluded — Allocation scope: <strong>${scopeName}</strong> only</div>`;
   }
   if (state.overflowCount > 0) banners += `<div class="filter-banner amber">⚠️ <strong>${state.overflowCount.toLocaleString()} claim${state.overflowCount!==1?'s':''}</strong> unassigned — Cap overflow. Raise caps or add more agents.</div>`;
 
@@ -4017,7 +3978,6 @@ function showTime() {
 }
 showTime();
 setInterval(showTime, 1000);
-setReviewDateToday();
 applyGlobalCap('9999');
 
 function toast(msg,type='info') {
