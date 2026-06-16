@@ -3334,6 +3334,60 @@ async function _buildStyledWorkbook(agentList, distributionMap, agentStateList, 
 
   sumSheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: 12 } };
 
+  // ── METHODOLOGY / FAIRNESS SHEET ────────────────────────────────────────────
+  const methSheet = wb.addWorksheet('⚖️ Methodology', { views: [{ state: 'frozen', ySplit: 2 }] });
+  methSheet.properties.tabColor = { argb: 'FF6366F1' };
+
+  methSheet.mergeCells('A1:B1');
+  const methTitle = methSheet.getCell('A1');
+  methTitle.value = `How This Distribution Was Built — Logic, Equity & Fairness`;
+  methTitle.font = { name: 'Arial', bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+  methTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B0764' } };
+  methTitle.alignment = { horizontal: 'left', vertical: 'middle' };
+  methSheet.getRow(1).height = 30;
+
+  methSheet.columns = [
+    { key: 'topic', width: 30 },
+    { key: 'explanation', width: 110 }
+  ];
+  const methHdrRow = methSheet.getRow(2);
+  methHdrRow.getCell(1).value = 'Topic';
+  methHdrRow.getCell(2).value = 'Explanation';
+  _applyHeaderStyle(methHdrRow, HEADER_PURPLE);
+
+  const equityModeOn = document.getElementById('equityModeToggle')?.checked !== false;
+  const relPctVal = state.relatedPct ?? 100;
+  const globalCapVal = state.globalCap;
+  const totalAssigned = agentList.reduce((s,a)=>s+(distributionMap[a]||[]).length,0);
+  const totalRelClaims = agentList.reduce((s,a)=>s+(distributionMap[a]||[]).filter(r=>r._rel).length,0);
+
+  const methRows = [
+    ['Active Agents', `${agentList.length} agents shared this queue. Every active agent is treated as an equal claimant on the pool of work — nobody starts with a structural advantage or disadvantage.`],
+    ['Related-Claim Grouping', `Claims that belong to the same patient/family/provider chain are detected and kept together as one "related group" so a single agent has full context on a case, instead of the work being split randomly across people.`],
+    ['Equity Cap (fair-share target)', equityModeOn
+      ? `ON — each agent's target share of related-claim work is computed as (total related claims ÷ active agents), so large families of claims are spread out rather than stacking onto whoever happens to get the first big group. This is the main lever that keeps the workload balanced, not just the claim count.`
+      : `OFF for this run — related groups were distributed without enforcing an equal per-agent share. Toggle "Equity Mode" on to re-enable balanced load targets.`],
+    ['Prior-Session Offset', `If a prior queue export was imported, agents who carried heavier related-claim loads last session start this run with a small head-start toward their cap (so they get fewer this time), and agents who were under-served start with extra room (so they get more this time) — balancing workload fairly across sessions, not just within one run.`],
+    ['Oldest-First Ordering', `Within each agent's allotment, claims are sorted oldest-first so stale, aging claims are prioritized for follow-up ahead of newer ones — no agent is shielded from the older backlog and no agent is stuck with all of it either.`],
+    ['Per-Agent Cap', globalCapVal && globalCapVal < 9999 ? `A global cap of ${globalCapVal} claims per agent was enforced this run, with any per-agent overrides taking precedence. Caps prevent any single agent from being overloaded regardless of how the math works out.` : `No hard cap was enforced this run (agents may have individual caps set in their profile, which always take precedence over the global default).`],
+    ['Related % Mix Target', `${relPctVal}% — the target proportion of each agent's queue made up of related-claim groups vs. single, standalone claims, so no agent is disproportionately stuck with only complex multi-claim families or only simple one-off claims.`],
+    ['Status Mix Proportionality', `Each agent's mix of claim statuses (e.g. Bill Filed, Payment Review, etc.) is built to mirror the overall status mix of the full queue, so no single agent is handed a lopsided share of any one status type.`],
+    ['Provider / Alpha Matching', `Where an agent has an assigned provider or last-name alpha range, matching claims are routed to them first (exact match, then partial/provider match) before the remainder is balanced out — preserving existing specialization without breaking equity.`],
+    ['Exclusions Applied', `Claims already owned by the MVA Bilingual team and/or claims with a review date beyond the configured cutoff are filtered out before distribution begins, so they don't count against — or distort — anyone's fair share.`],
+    ['Result for This Run', `${totalAssigned.toLocaleString()} claims were distributed across ${agentList.length} agents, including ${totalRelClaims.toLocaleString()} claims inside related groups. See the 📊 Summary sheet for the per-agent breakdown and load bars.`],
+  ];
+
+  methRows.forEach(([topic, explanation], i) => {
+    const row = methSheet.addRow({ topic, explanation });
+    row.getCell('topic').font = { name: 'Arial', bold: true, size: 10, color: { argb: 'FF3B0764' } };
+    row.getCell('topic').alignment = { vertical: 'top', wrapText: true };
+    row.getCell('explanation').font = { name: 'Arial', size: 10, color: { argb: 'FF1F2937' } };
+    row.getCell('explanation').alignment = { vertical: 'top', wrapText: true };
+    row.eachCell(cell => { cell.border = _fullBorder(false, false); });
+    if (i % 2 === 1) row.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3E8FF' } }; });
+    row.height = 60;
+  });
+
   // ── PER-AGENT SHEETS ─────────────────────────────────────────────────────────
   const AGENT_COLORS = ['FF3B82F6','FF22D3EE','FF10B981','FFA855F7','FFF59E0B',
                         'FFEF4444','FFEC4899','FF14B8A6','FFF97316','FF6366F1'];
