@@ -2085,7 +2085,8 @@ let _allocCounts = {}; // { value -> count }
 function _rebuildAllocCounts() {
   _allocCounts = {};
   state.allRows.forEach(r => {
-    const val = String(r['Allocation'] || '').trim();
+    // 'Allocation' on Sheet1 (agent names), 'Team Name' on Data/NRD sheets (team names)
+    const val = String(r['Allocation'] || r['Team Name'] || '').trim();
     if (val) _allocCounts[val] = (_allocCounts[val] || 0) + 1;
   });
 }
@@ -2139,20 +2140,18 @@ function handleFiles(files) {
         if (ext === 'csv') rows = parseCSV(e.target.result);
         else {
           const wb = XLSX.read(e.target.result, {type:'binary'});
-          // Prefer a sheet that already has ClaimID; if none, prefer 'Data' or 'Sheet1'
-          let sheetName = wb.SheetNames.find(name => {
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
-            return json[0] && 'ClaimID' in json[0];
-          });
-          // For Delinquent Follow-Up: prefer 'Data' sheet (full team data) over 'Sheet1' (single-agent slice)
+          // For Delinquent Follow-Up files: prefer Sheet1 if it has the Allocation column
+          let sheetName = null;
+          if (wb.SheetNames.includes('Sheet1')) {
+            const s1 = XLSX.utils.sheet_to_json(wb.Sheets['Sheet1'], {defval:'', header:1});
+            if (s1[0] && s1[0].includes('Allocation')) { sheetName = 'Sheet1'; }
+          }
+          // Otherwise find the first sheet with a ClaimID column
           if (!sheetName) {
-            sheetName = wb.SheetNames.find(n => n === 'Data') ||
-                        wb.SheetNames.find(n => n === 'Sheet1') ||
-                        wb.SheetNames[0];
-          } else if (wb.SheetNames.includes('Data')) {
-            // If 'Data' sheet exists and also has ClaimID, prefer it (it has all agents)
-            const dataJson = XLSX.utils.sheet_to_json(wb.Sheets['Data'], {defval:''});
-            if (dataJson[0] && 'ClaimID' in dataJson[0]) sheetName = 'Data';
+            sheetName = wb.SheetNames.find(name => {
+              const json = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
+              return json[0] && 'ClaimID' in json[0];
+            }) || wb.SheetNames[0];
           }
           rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:''});
         }
@@ -2750,7 +2749,7 @@ function runDistribution() {
   let filteredOutAlloc = 0;
   if (allocScope) {
     workingRows = workingRows.filter(row => {
-      const val = String(row['Allocation'] || '').trim();
+      const val = String(row['Allocation'] || row['Team Name'] || '').trim();
       if (val !== allocScope) {
         filteredOutAlloc++;
         state.unassignedReasons[row.ClaimID] = 'Filtered: Allocation "' + val + '" not in scope';
