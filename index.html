@@ -2020,8 +2020,12 @@ function handleFiles(files) {
         if (ext === 'csv') rows = parseCSV(e.target.result);
         else {
           const wb = XLSX.read(e.target.result, {type:'binary'});
-          const ws = wb.Sheets[wb.SheetNames[0]];
-          rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+          let sheetName = wb.SheetNames.find(name => {
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
+            return json[0] && 'ClaimID' in json[0];
+          });
+          if (!sheetName) sheetName = wb.SheetNames[0];
+          rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:''});
         }
         rows = rows.map(r => { const o={}; Object.keys(r).forEach(k => o[k.trim()]=r[k]); return o; });
         if (!rows[0] || !('ClaimID' in rows[0])) { toast('No ClaimID column in: ' + file.name, 'error'); return; }
