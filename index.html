@@ -194,6 +194,23 @@
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
+  /* ── ALLOCATION FILTER PANEL ────────────────────────────────────────── */
+  .alloc-panel { background: rgba(245,158,11,0.05); border: 1px solid rgba(245,158,11,0.25); border-radius: 10px; padding: 14px 18px; margin-top: 14px; }
+  .alloc-panel-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+  .alloc-panel-title { font-size: 13px; font-weight: 700; color: #fde68a; }
+  .alloc-panel-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+  .alloc-chip-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 6px; }
+  .alloc-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 11px; font-size: 12px; cursor: pointer; transition: all 0.18s; color: var(--text); user-select: none; font-family: var(--sans); }
+  .alloc-chip:hover { border-color: var(--amber); }
+  .alloc-chip.selected { border-color: var(--amber); background: rgba(245,158,11,0.12); color: #fde68a; font-weight: 700; }
+  .alloc-chip input { margin: 0; cursor: pointer; accent-color: var(--amber); }
+  .alloc-chip-count { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: 2px; }
+  .alloc-chip.selected .alloc-chip-count { color: #fde68a; }
+  .alloc-all-btn { font-family: var(--mono); font-size: 10px; background: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 9px; cursor: pointer; color: var(--muted); transition: all 0.15s; }
+  .alloc-all-btn:hover { border-color: var(--amber); color: #fde68a; }
+  .alloc-active-banner { font-family: var(--mono); font-size: 11px; color: var(--amber); margin-top: 8px; display: none; }
+  .alloc-panel.has-selection .alloc-active-banner { display: block; }
+
   /* ── TEAM PROFILE SWITCHER ──────────────────────────────────────────────── */
   /* Legacy pill (kept for compat, hidden) */
   .profile-pill { display: none; }
@@ -941,7 +958,7 @@
         <div class="section-hint"><span class="sh-icon">📋</span><div><strong>What to upload:</strong> Export your claim queue from Enforcer as a CSV or XLSX file. You can drop multiple files at once — they'll be merged automatically and duplicates removed.</div></div>
         <div class="alert alert-info">
           <span>ℹ️</span>
-          <span>Upload one or multiple alpha list exports from Enforcer. All files will be merged, duplicates removed by ClaimID. Expected columns: <strong>ClaimID, Last 4 SSN, Patient FN, Patient LN, Patient DOB</strong>, etc.</span>
+          <span>Upload alpha list exports from Enforcer <strong>or Delinquent Follow-Up reports</strong>. Files are merged automatically, duplicates removed by ClaimID. Enforcer format: <strong>ClaimID, Last 4 SSN, Patient FN, Patient LN, Patient DOB</strong>. Delinquent Follow-Up format: <strong>ClaimID, Patient First Name, Patient Last Name, Next Review Date, Account Status Name</strong> — columns are auto-mapped on import.</span>
         </div>
         <div class="upload-zone" id="uploadZone">
           <input type="file" id="fileInput" multiple accept=".csv,.xlsx,.xls">
@@ -950,6 +967,19 @@
           <div class="upload-sub">Supports .csv, .xlsx, .xls — multiple files OK</div>
         </div>
         <div class="file-list" id="fileList"></div>
+
+        <!-- Allocation / Team Filter (shown only for Delinquent Follow-Up format) -->
+        <div class="alloc-panel hidden" id="allocFilterPanel">
+          <div class="alloc-panel-head">
+            <span style="font-size:18px">🏷️</span>
+            <div class="alloc-panel-title">Allocation Filter <span style="font-family:var(--mono);font-size:9px;color:var(--amber);background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3);padding:2px 7px;border-radius:10px;letter-spacing:1px;margin-left:4px">DELINQUENT FORMAT</span></div>
+            <button class="alloc-all-btn" onclick="allocSelectAll()" title="Select all allocations">Select All</button>
+            <button class="alloc-all-btn" onclick="allocClearAll()" title="Clear all (distribute everything)" style="margin-left:0">Clear All</button>
+          </div>
+          <div class="alloc-panel-sub">This file contains an <strong style="color:#fde68a">Allocation</strong> or <strong style="color:#fde68a">Team Name</strong> column. Select one or more values below to restrict the distribution to only those claims. Leave all unchecked to distribute the full queue.</div>
+          <div class="alloc-chip-grid" id="allocChipGrid"></div>
+          <div class="alloc-active-banner" id="allocActiveBanner">⚡ Filter active — only selected allocation(s) will be distributed</div>
+        </div>
 
         <!-- Prior Queue Import -->
         <div class="prior-panel">
@@ -2008,6 +2038,127 @@ function renderPriorStatus(fileName, counts) {
   `;
 }
 
+// ── DELINQUENT FOLLOW-UP FORMAT DETECTION & NORMALIZATION ─────────────────────
+// Detects the Delinquent Follow-Up report format (columns: Patient First Name,
+// Patient Last Name, Next Review Date, Account Status Name, Allocation, Team Name)
+// and remaps them to QueueDistributor's internal column names so the file imports
+// seamlessly without any manual column renaming.
+function _isDelinquentFormat(row) {
+  if (!row) return false;
+  const keys = Object.keys(row);
+  return (
+    keys.includes('ClaimID') &&
+    (keys.includes('Patient First Name') || keys.includes('Patient Last Name') ||
+     keys.includes('Next Review Date') || keys.includes('Account Status Name'))
+  );
+}
+
+function _normalizeDelinquentRow(r) {
+  const o = Object.assign({}, r);
+  // Patient name columns
+  if (!('Patient FN' in o) && 'Patient First Name' in o)  { o['Patient FN'] = o['Patient First Name']; }
+  if (!('Patient LN' in o) && 'Patient Last Name' in o)   { o['Patient LN'] = o['Patient Last Name'];  }
+  // Review date column — QueueDistributor reads 'Review Dt' by default
+  if (!('Review Dt' in o) && 'Next Review Date' in o)     { o['Review Dt'] = o['Next Review Date'];    }
+  // Status column — QueueDistributor reads whatever is in the statusCol input (default 'Status')
+  // We map Account Status Name → both 'Status' AND 'Account Status' so all internal lookups hit
+  if (!('Status' in o) && 'Account Status Name' in o)     { o['Status'] = o['Account Status Name'];    }
+  if (!('Account Status' in o) && 'Account Status Name' in o) { o['Account Status'] = o['Account Status Name']; }
+  // Prior-assignment column — 'Allocation' (Sheet1) or 'Team Name' (Data/NRD sheets) → 'Assigned To'
+  if (!('Assigned To' in o)) {
+    if ('Allocation' in o && o['Allocation']) o['Assigned To'] = o['Allocation'];
+    else if ('Team Name' in o && o['Team Name']) o['Assigned To'] = o['Team Name'];
+  }
+  // Stub out missing identity columns so related-patient matching degrades gracefully
+  if (!('Last 4 SSN' in o))   o['Last 4 SSN']  = '';
+  if (!('Patient DOB' in o))  o['Patient DOB'] = '';
+  if (!('Patient Acct' in o)) o['Patient Acct'] = o['ClaimID'] ? String(o['ClaimID']) : '';
+  return o;
+}
+
+// Auto-configure UI fields when a Delinquent Follow-Up file is detected
+function _applyDelinquentDefaults() {
+  const rdCol = document.getElementById('reviewDateCol');
+  const stCol = document.getElementById('statusCol');
+  if (rdCol && rdCol.value === 'Review Dt') rdCol.value = 'Review Dt'; // already set, no-op shown for clarity
+  if (stCol && (stCol.value === 'Status' || stCol.value === '')) stCol.value = 'Status';
+  // Show a one-time info toast so the user knows auto-mapping fired
+  toast('📋 Delinquent Follow-Up format detected — columns auto-mapped', 'info');
+}
+
+// ── ALLOCATION FILTER ─────────────────────────────────────────────────────────
+// Stores { value -> count } of all allocation/team values found across loaded rows
+let _allocCounts = {};
+// The active filter set (empty = no filter = distribute everything)
+let _allocSelected = new Set();
+
+function _rebuildAllocCounts() {
+  _allocCounts = {};
+  state.allRows.forEach(r => {
+    const val = String(r['Allocation'] || r['Team Name'] || '').trim();
+    if (val) _allocCounts[val] = (_allocCounts[val] || 0) + 1;
+  });
+}
+
+function _renderAllocPanel() {
+  const panel = document.getElementById('allocFilterPanel');
+  const grid  = document.getElementById('allocChipGrid');
+  const banner = document.getElementById('allocActiveBanner');
+  if (!panel || !grid) return;
+
+  const entries = Object.entries(_allocCounts).sort((a, b) => a[0].localeCompare(b[0]));
+  if (entries.length === 0) {
+    panel.classList.add('hidden');
+    return;
+  }
+
+  panel.classList.remove('hidden');
+
+  grid.innerHTML = entries.map(([val, cnt]) => {
+    const checked = _allocSelected.has(val);
+    const esc = val.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    return `<label class="alloc-chip${checked ? ' selected' : ''}" onclick="allocToggle(this, '${esc.replace(/'/g,"\\'")}')">
+      <input type="checkbox" ${checked ? 'checked' : ''} style="display:none">
+      <span>${esc}</span><span class="alloc-chip-count">(${cnt.toLocaleString()})</span>
+    </label>`;
+  }).join('');
+
+  // Toggle has-selection class for the active banner
+  if (_allocSelected.size > 0) {
+    panel.classList.add('has-selection');
+    const names = [..._allocSelected].join(', ');
+    const total = [..._allocSelected].reduce((s, v) => s + (_allocCounts[v] || 0), 0);
+    banner.textContent = `⚡ Filter active — distributing ${total.toLocaleString()} claims from: ${names}`;
+  } else {
+    panel.classList.remove('has-selection');
+    banner.textContent = '⚡ Filter active — only selected allocation(s) will be distributed';
+  }
+}
+
+function allocToggle(labelEl, val) {
+  if (_allocSelected.has(val)) {
+    _allocSelected.delete(val);
+    labelEl.classList.remove('selected');
+  } else {
+    _allocSelected.add(val);
+    labelEl.classList.add('selected');
+  }
+  _renderAllocPanel();
+}
+
+function allocSelectAll() {
+  Object.keys(_allocCounts).forEach(v => _allocSelected.add(v));
+  _renderAllocPanel();
+}
+
+function allocClearAll() {
+  _allocSelected.clear();
+  _renderAllocPanel();
+}
+
+// Returns the active allocation filter set (empty Set = no filter)
+function getAllocFilter() { return _allocSelected; }
+
 function handleFiles(files) {
   [...files].forEach(file => {
     const ext = file.name.split('.').pop().toLowerCase();
@@ -2020,14 +2171,30 @@ function handleFiles(files) {
         if (ext === 'csv') rows = parseCSV(e.target.result);
         else {
           const wb = XLSX.read(e.target.result, {type:'binary'});
+          // Prefer a sheet that already has ClaimID; if none, prefer 'Data' or 'Sheet1'
           let sheetName = wb.SheetNames.find(name => {
             const json = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:''});
             return json[0] && 'ClaimID' in json[0];
           });
-          if (!sheetName) sheetName = wb.SheetNames[0];
+          // For Delinquent Follow-Up: prefer 'Data' sheet (full team data) over 'Sheet1' (single-agent slice)
+          if (!sheetName) {
+            sheetName = wb.SheetNames.find(n => n === 'Data') ||
+                        wb.SheetNames.find(n => n === 'Sheet1') ||
+                        wb.SheetNames[0];
+          } else if (wb.SheetNames.includes('Data')) {
+            // If 'Data' sheet exists and also has ClaimID, prefer it (it has all agents)
+            const dataJson = XLSX.utils.sheet_to_json(wb.Sheets['Data'], {defval:''});
+            if (dataJson[0] && 'ClaimID' in dataJson[0]) sheetName = 'Data';
+          }
           rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], {defval:''});
         }
+        // Trim all key names
         rows = rows.map(r => { const o={}; Object.keys(r).forEach(k => o[k.trim()]=r[k]); return o; });
+        // ── Delinquent Follow-Up auto-normalization ──────────────────────────
+        if (rows[0] && _isDelinquentFormat(rows[0])) {
+          rows = rows.map(_normalizeDelinquentRow);
+          _applyDelinquentDefaults();
+        }
         if (!rows[0] || !('ClaimID' in rows[0])) { toast('No ClaimID column in: ' + file.name, 'error'); return; }
         state.files.push({ name: file.name, count: rows.length, rows });
         renderFileList(); mergeAllRows();
@@ -2081,6 +2248,11 @@ function mergeAllRows() {
   const info=document.getElementById('step1-info');
   btn.disabled = state.allRows.length===0;
   info.textContent = state.allRows.length ? `${state.allRows.length.toLocaleString()} unique claims loaded` : '';
+  // Rebuild allocation filter panel whenever rows change
+  _rebuildAllocCounts();
+  // Remove any selected allocations that no longer exist in the data
+  [..._allocSelected].forEach(v => { if (!_allocCounts[v]) _allocSelected.delete(v); });
+  _renderAllocPanel();
 }
 
 function goStep1() { show('panel-upload'); hide('panel-agents'); hide('panel-results'); setStep(1); updateStickyBar(); }
@@ -2142,6 +2314,13 @@ function showRunModal() {
   const statsEl = document.getElementById('runModalStats');
   const subEl = document.getElementById('runModalSub');
 
+  const allocFilter = getAllocFilter();
+  const allocLabel = allocFilter.size > 0 ? [...allocFilter].join(', ') : 'All';
+  const allocColor = allocFilter.size > 0 ? 'var(--amber)' : 'var(--muted)';
+  const allocClaims = allocFilter.size > 0
+    ? [...allocFilter].reduce((s, v) => s + (_allocCounts[v] || 0), 0)
+    : state.allRows.length;
+
   subEl.textContent = `${activeAgents.length} agents active${absentAgents.length ? `, ${absentAgents.length} absent (${absentAgents.map(a=>a.name.split(' ')[0]).join(', ')})` : ''}. Review the run parameters before committing.`;
 
   statsEl.innerHTML = `
@@ -2149,7 +2328,13 @@ function showRunModal() {
     <div class="run-modal-stat"><div class="run-modal-stat-label">Active Agents</div><div class="run-modal-stat-val" style="color:var(--green)">${activeAgents.length}</div></div>
     <div class="run-modal-stat"><div class="run-modal-stat-label">Global Cap</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:16px">${globalCap >= 9999 ? '∞ No limit' : globalCap}</div></div>
     <div class="run-modal-stat"><div class="run-modal-stat-label">Review Filter</div><div class="run-modal-stat-val" style="color:var(--muted);font-size:14px">${filterDate || 'None'}</div></div>
-  `;
+  ` + (allocFilter.size > 0
+    ? '<div class="run-modal-stat" style="grid-column:1/-1;border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.07)">'
+      + '<div class="run-modal-stat-label" style="color:var(--amber)">🏷️ Allocation Filter</div>'
+      + '<div class="run-modal-stat-val" style="color:' + allocColor + ';font-size:13px;line-height:1.4">' + allocLabel + '</div>'
+      + '<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px">' + allocClaims.toLocaleString() + ' claims in scope</div>'
+      + '</div>'
+    : '');
   if (modal) modal.classList.add('active');
 }
 
@@ -2599,6 +2784,22 @@ function runDistribution() {
   state.filteredOutBilingual = filteredOutBilingual;
   state.dateColUsed = filterDateVal ? dateCol : null;
 
+  // ── Allocation / Team Filter ──────────────────────────────────────────────
+  const allocFilter = getAllocFilter();
+  let filteredOutAlloc = 0;
+  if (allocFilter.size > 0) {
+    workingRows = workingRows.filter(row => {
+      const val = String(row['Allocation'] || row['Team Name'] || '').trim();
+      if (!allocFilter.has(val)) {
+        filteredOutAlloc++;
+        state.unassignedReasons[row.ClaimID] = `Filtered: Allocation "${val}" not selected`;
+        return false;
+      }
+      return true;
+    });
+  }
+  state.filteredOutAlloc = filteredOutAlloc;
+
   // Sort oldest-first so agents receive older claims first (prioritizes stale work)
   workingRows = sortRowsByAge(workingRows, dateCol);
 
@@ -2882,6 +3083,10 @@ function renderResults(agents,relGroups,singles,totalDistributed) {
   if (state.filteredOutBilingual > 0) banners += `<div class="filter-banner">🌐 <strong>${state.filteredOutBilingual.toLocaleString()} claim${state.filteredOutBilingual!==1?'s':''}</strong> excluded — assigned to MVA Bilingual Team</div>`;
   if (state.filteredOutDate > 0) banners += `<div class="filter-banner">📅 <strong>${state.filteredOutDate.toLocaleString()} claim${state.filteredOutDate!==1?'s':''}</strong> excluded — Review Date beyond cutoff</div>`;
   if (state.filteredOutStatus > 0) banners += `<div class="filter-banner red">🚫 <strong>${state.filteredOutStatus.toLocaleString()} claim${state.filteredOutStatus!==1?'s':''}</strong> excluded — Status not allowed by active agents' batches</div>`;
+  if (state.filteredOutAlloc > 0) {
+    const activeAllocs = [...getAllocFilter()].join(', ');
+    banners += `<div class="filter-banner amber">🏷️ <strong>${state.filteredOutAlloc.toLocaleString()} claim${state.filteredOutAlloc!==1?'s':''}</strong> excluded — Allocation filter active: <strong>${activeAllocs}</strong></div>`;
+  }
   if (state.overflowCount > 0) banners += `<div class="filter-banner amber">⚠️ <strong>${state.overflowCount.toLocaleString()} claim${state.overflowCount!==1?'s':''}</strong> unassigned — Cap overflow. Raise caps or add more agents.</div>`;
 
   const matchPct = totalDistributed ? Math.round((state.exactMatches+state.provMatches)/totalDistributed*100) : 0;
